@@ -1,838 +1,185 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="tk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMC Trader - Islendik Moneta</title>
-    <style>
-        :root {
-            --bg: #0b1020;
-            --card: #11182b;
-            --card2: #0d1426;
-            --text: #e8edf7;
-            --muted: #8f9bb3;
-            --border: #25304a;
-            --green: #24d18a;
-            --red: #ff5d73;
-            --yellow: #f5c451;
-            --blue: #5b8cff;
-            --purple: #a78bfa;
-            --orange: #fb923c;
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: 'Inter', -apple-system, Arial, sans-serif;
-            padding: 16px;
-            min-height: 100vh;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 20px;
-            background: var(--card);
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            margin-bottom: 16px;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .header h1 { font-size: 20px; font-weight: 700; }
-        .header .status-group {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        .status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            color: var(--muted);
-        }
-        .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); transition: background 0.3s; }
-        .dot.on { background: var(--green); }
-        .badge {
-            background: var(--border);
-            padding: 2px 10px;
-            border-radius: 12px;
-            font-size: 11px;
-            color: var(--muted);
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: 340px 1fr;
-            gap: 16px;
-        }
-
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 16px;
-        }
-        .card + .card { margin-top: 12px; }
-        .card h3 {
-            font-size: 12px;
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 10px;
-        }
-
-        .row {
-            display: flex;
-            justify-content: space-between;
-            padding: 6px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.04);
-            font-size: 13px;
-        }
-        .row .label { color: var(--muted); }
-        .row .value { font-family: 'Consolas', monospace; font-weight: 600; }
-
-        label {
-            display: block;
-            margin: 10px 0 4px;
-            color: var(--muted);
-            font-size: 12px;
-        }
-        input, select {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: var(--card2);
-            color: var(--text);
-            outline: none;
-            font-size: 14px;
-            font-family: 'Consolas', monospace;
-        }
-        input:focus, select:focus { border-color: var(--blue); }
-
-        button {
-            border: 0;
-            border-radius: 8px;
-            padding: 10px 14px;
-            cursor: pointer;
-            font-weight: 700;
-            font-size: 13px;
-            transition: all 0.2s;
-        }
-        button:hover { transform: translateY(-1px); opacity: 0.9; }
-
-        .btn-group {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-top: 12px;
-        }
-        .btn-start { background: var(--green); color: #06140f; }
-        .btn-stop { background: var(--red); color: #fff; }
-        .btn-analyze { background: var(--blue); color: #fff; width: 100%; margin-top: 8px; }
-        .btn-sync { background: var(--purple); color: #fff; width: 100%; margin-top: 8px; }
-
-        .signal-box {
-            text-align: center;
-            padding: 16px;
-            background: var(--card2);
-            border-radius: 10px;
-            border: 1px solid var(--border);
-        }
-        .signal-box .signal-text {
-            font-size: 36px;
-            font-weight: 900;
-        }
-        .signal-box .signal-text.BUY { color: var(--green); }
-        .signal-box .signal-text.SELL { color: var(--red); }
-        .signal-box .signal-text.WAIT { color: var(--yellow); }
-
-        .score-row {
-            display: flex;
-            justify-content: center;
-            gap: 24px;
-            margin-top: 8px;
-            font-size: 14px;
-        }
-        .score-row .buy { color: var(--green); }
-        .score-row .sell { color: var(--red); }
-
-        .indicator-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 4px;
-        }
-        .indicator-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 4px 8px;
-            background: var(--card2);
-            border-radius: 6px;
-            font-size: 12px;
-        }
-        .indicator-item .label { color: var(--muted); }
-        .indicator-item .value { font-family: 'Consolas', monospace; font-weight: 600; }
-        .indicator-item .true { color: var(--green); }
-        .indicator-item .false { color: var(--red); }
-        .indicator-item .unknown { color: var(--muted); }
-
-        .reason-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .reason-list li {
-            padding: 3px 8px;
-            margin: 2px 0;
-            border-radius: 4px;
-            font-size: 12px;
-            background: rgba(255,255,255,0.03);
-        }
-        .reason-list .buy-reason { border-left: 3px solid var(--green); }
-        .reason-list .sell-reason { border-left: 3px solid var(--red); }
-        .reason-list .neutral { color: var(--muted); font-style: italic; }
-
-        .logs {
-            background: #080d19;
-            border-radius: 8px;
-            padding: 10px;
-            height: 200px;
-            overflow: auto;
-            font-family: 'Consolas', monospace;
-            font-size: 11px;
-            white-space: pre-wrap;
-            line-height: 1.5;
-        }
-        .logs::-webkit-scrollbar { width: 4px; }
-        .logs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
-        .table-wrap { overflow-x: auto; margin-top: 10px; }
-        table { width: 100%; border-collapse: collapse; min-width: 700px; font-size: 12px; }
-        th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
-        th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; }
-        td { font-family: 'Consolas', monospace; }
-        .tag {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 6px;
-            background: #1a2338;
-            font-size: 11px;
-        }
-
-        .position-item {
-            padding: 6px 10px;
-            background: var(--card2);
-            border-radius: 6px;
-            margin-bottom: 4px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            font-family: 'Consolas', monospace;
-        }
-        .pos-side-Buy { color: var(--green); }
-        .pos-side-Sell { color: var(--red); }
-        .pos-pnl-positive { color: var(--green); }
-        .pos-pnl-negative { color: var(--red); }
-
-        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .error { color: var(--red); margin-top: 8px; font-size: 12px; min-height: 18px; }
-
-        /* Symbol Search */
-        .search-container {
-            position: relative;
-        }
-        .search-container input {
-            padding-right: 40px;
-        }
-        .search-container .clear-btn {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: transparent;
-            color: var(--muted);
-            padding: 0;
-            font-size: 16px;
-            border: none;
-            cursor: pointer;
-        }
-        .suggestions {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 100;
-            display: none;
-        }
-        .suggestions.active { display: block; }
-        .suggestions div {
-            padding: 8px 12px;
-            cursor: pointer;
-            font-family: 'Consolas', monospace;
-            font-size: 13px;
-        }
-        .suggestions div:hover {
-            background: var(--card2);
-        }
-
-        @media (max-width: 900px) {
-            .grid { grid-template-columns: 1fr; }
-            .two-col { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 500px) {
-            body { padding: 8px; }
-            .header { flex-direction: column; align-items: flex-start; }
-            .score-row { flex-wrap: wrap; gap: 10px; }
-        }
-    </style>
+    <title>SMC Bybit Trading Bot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-
-<div class="header">
-    <h1>📊 SMC Trader</h1>
-    <div class="status-group">
-        <div class="status">
-            <span id="statusDot" class="dot"></span>
-            <span id="statusText">Stopped</span>
+<body class="bg-gray-900 text-white font-sans p-6">
+    <div class="max-w-6xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-center bg-gray-800 p-4 rounded-xl border border-gray-700">
+            <h1 class="text-2xl font-bold text-yellow-500">⚙️ SMC Bybit Trading Bot</h1>
+            <span class="text-xs bg-green-500/20 text-green-400 px-3 py-1 rounded-full">Bybit API v5 Active</span>
         </div>
-        <span class="badge" id="lastUpdate">—</span>
-        <span class="badge" id="updateCount">#0</span>
-    </div>
-</div>
 
-<div class="grid">
-
-    <!-- LEFT -->
-    <div>
-        <div class="card">
-            <h3>⚙️ Bot Sazlamalary</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            <label>Symbol (Islendik moneta ýazyň)</label>
-            <div class="search-container">
-                <input id="symbol" value="PEPEUSDT" 
-                       placeholder="Mys: BTCUSDT, PEPEUSDT, DOGEUSDT"
-                       oninput="searchSymbol(this.value)">
-                <button class="clear-btn" onclick="clearSymbol()">✕</button>
-                <div id="suggestions" class="suggestions"></div>
-            </div>
-
-            <label>Entry Timeframe</label>
-            <select id="timeframe">
-                <option value="5">5m</option>
-                <option value="15" selected>15m</option>
-                <option value="30">30m</option>
-                <option value="60">1H</option>
-                <option value="240">4H</option>
-            </select>
-
-            <label>HTF Timeframe</label>
-            <select id="htf">
-                <option value="30">30m</option>
-                <option value="60" selected>1H</option>
-                <option value="240">4H</option>
-                <option value="D">1D</option>
-            </select>
-
-            <label>Margin (USDT)</label>
-            <input id="amount" type="number" min="0.1" step="0.1" value="1">
-
-            <label>Leverage</label>
-            <input id="leverage" type="number" min="1" max="100" step="1" value="5">
-
-            <div class="btn-group">
-                <button class="btn-start" onclick="startBot()">▶ START</button>
-                <button class="btn-stop" onclick="stopBot()">⏹ STOP</button>
-            </div>
-            <button class="btn-analyze" onclick="manualAnalyze()">🔍 SMC Analysis</button>
-            <button class="btn-sync" onclick="syncTime()">🔄 Sync Time</button>
-            <div id="error" class="error"></div>
-        </div>
-
-        <div class="card">
-            <h3>💰 Account</h3>
-            <div class="row"><span class="label">USDT Equity</span><span id="balance" class="value">—</span></div>
-            <div class="row"><span class="label">Mode</span><span id="mode" class="value">—</span></div>
-            <div class="row"><span class="label">Open Positions</span><span id="posCount" class="value">0</span></div>
-        </div>
-
-        <div class="card">
-            <h3>📋 Open Positions</h3>
-            <div id="positions"><div class="muted" style="text-align:center;padding:10px;font-size:12px;">No open positions</div></div>
-        </div>
-
-        <div class="card">
-            <h3>📝 Logs</h3>
-            <div id="logs" class="logs">Waiting...</div>
-        </div>
-    </div>
-
-    <!-- RIGHT -->
-    <div>
-
-        <div class="card">
-            <div class="signal-box">
-                <div style="color:var(--muted);font-size:12px;">SMC NET SIGNAL</div>
-                <div id="signalText" class="signal-text WAIT">WAIT</div>
-                <div class="score-row">
-                    <span>BUY: <b id="buyScore" class="buy">0</b></span>
-                    <span>SELL: <b id="sellScore" class="sell">0</b></span>
-                    <span>Confidence: <b id="confidence">0</b></span>
+            <!-- Bot Sazlamalary Panel -->
+            <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-4">
+                <h2 class="text-lg font-semibold border-b border-gray-700 pb-2">Bot Sazlamalary</h2>
+                
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Symbol (Moneta ady)</label>
+                    <input id="symbol" type="text" value="BTCUSDT" class="w-full bg-gray-900 border border-gray-700 rounded p-2 focus:border-yellow-500 outline-none uppercase" />
                 </div>
-                <div style="margin-top:6px;font-size:12px;color:var(--muted);">
-                    Location: <b id="location">—</b> &nbsp;|&nbsp; ATR: <b id="atrValue">—</b>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Entry Timeframe</label>
+                        <select id="entry_tf" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white">
+                            <option value="5m">5m</option>
+                            <option value="15m" selected>15m</option>
+                            <option value="30m">30m</option>
+                            <option value="1H">1H</option>
+                            <option value="4H">4H</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">HTF Timeframe</label>
+                        <select id="htf_tf" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white">
+                            <option value="30m">30m</option>
+                            <option value="1H" selected>1H</option>
+                            <option value="4H">4H</option>
+                            <option value="1D">1D</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Margin (USDT)</label>
+                        <input id="margin" type="number" value="10" class="w-full bg-gray-900 border border-gray-700 rounded p-2" />
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Leverage</label>
+                        <input id="leverage" type="number" value="10" class="w-full bg-gray-900 border border-gray-700 rounded p-2" />
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 pt-2">
+                    <input id="auto_trade" type="checkbox" class="w-4 h-4 text-yellow-500 rounded bg-gray-900 border-gray-700" />
+                    <label for="auto_trade" class="text-sm font-medium">Awtomat Sdelka Aç (Auto-Trade)</label>
+                </div>
+
+                <button onclick="runAnalysis()" class="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-2 rounded transition">
+                    Analiz Başlat / Tazale
+                </button>
+            </div>
+
+            <!-- Analiz Netijeleri Panel -->
+            <div class="md:col-span-2 bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-4">
+                <h2 class="text-lg font-semibold border-b border-gray-700 pb-2">🧠 Smart Money Concept Analysis</h2>
+                
+                <div id="analysis-output" class="space-y-3">
+                    <p class="text-gray-400">Analiz netijelerini görmek üçin monetany girizip, başlaň...</p>
                 </div>
             </div>
+
         </div>
 
-        <div class="card">
-            <div class="indicator-grid">
-                <div class="indicator-item"><span class="label">Price</span><span id="price" class="value">—</span></div>
-                <div class="indicator-item"><span class="label">RSI</span><span id="rsi" class="value">—</span></div>
-                <div class="indicator-item"><span class="label">LTF Bias</span><span id="ltf" class="value">—</span></div>
-                <div class="indicator-item"><span class="label">HTF Bias</span><span id="htfBias" class="value">—</span></div>
-            </div>
-        </div>
-
-        <!-- SMC Indicators -->
-        <div class="card">
-            <h3>🔍 SMC Indicators</h3>
-            <div class="indicator-grid">
-                <div class="indicator-item"><span class="label">📈 BOS Up</span><span id="bosUp" class="value unknown">—</span></div>
-                <div class="indicator-item"><span class="label">📉 BOS Down</span><span id="bosDown" class="value unknown">—</span></div>
-                <div class="indicator-item"><span class="label">🔄 CHoCH Up</span><span id="chochUp" class="value unknown">—</span></div>
-                <div class="indicator-item"><span class="label">🔄 CHoCH Down</span><span id="chochDown" class="value unknown">—</span></div>
-                <div class="indicator-item"><span class="label">💧 Buy Sweep</span><span id="buySweep" class="value unknown">—</span></div>
-                <div class="indicator-item"><span class="label">💧 Sell Sweep</span><span id="sellSweep" class="value unknown">—</span></div>
-                <div class="indicator-item"><span class="label">🟢 Bullish FVG</span><span id="bullFvg" class="value unknown">—</span></div>
-                <div class="indicator-item"><span class="label">🔴 Bearish FVG</span><span id="bearFvg" class="value unknown">—</span></div>
-                <div class="indicator-item"><span class="label">🟢 Bullish OB</span><span id="bullOb" class="value unknown">—</span></div>
-                <div class="indicator-item"><span class="label">🔴 Bearish OB</span><span id="bearOb" class="value unknown">—</span></div>
-                <div class="indicator-item"><span class="label">💰 Discount</span><span id="discount" class="value unknown">—</span></div>
-                <div class="indicator-item"><span class="label">💰 Premium</span><span id="premium" class="value unknown">—</span></div>
-            </div>
-        </div>
-
-        <!-- Reasons -->
-        <div class="two-col">
-            <div class="card">
-                <h3>🟢 BUY Reasons</h3>
-                <ul id="buyReasons" class="reason-list"><li class="neutral">No confluence</li></ul>
-            </div>
-            <div class="card">
-                <h3>🔴 SELL Reasons</h3>
-                <ul id="sellReasons" class="reason-list"><li class="neutral">No confluence</li></ul>
-            </div>
-        </div>
-
-        <!-- Structure & Risk -->
-        <div class="two-col">
-            <div class="card">
-                <h3>📈 Structure</h3>
-                <div class="row"><span class="label">Range High</span><span id="rangeHigh" class="value">—</span></div>
-                <div class="row"><span class="label">Equilibrium</span><span id="eq" class="value">—</span></div>
-                <div class="row"><span class="label">Range Low</span><span id="rangeLow" class="value">—</span></div>
-                <div class="row"><span class="label">Support</span><span id="support" class="value">—</span></div>
-                <div class="row"><span class="label">Resistance</span><span id="resistance" class="value">—</span></div>
-                <div class="row"><span class="label">BOS/CHoCH</span><span id="bosEvents" class="value">—</span></div>
-                <div class="row"><span class="label">Last Scan</span><span id="scan" class="value">—</span></div>
-            </div>
-            <div class="card">
-                <h3>🎯 Risk Plan</h3>
-                <div class="row"><span class="label">Entry</span><span id="entry" class="value">—</span></div>
-                <div class="row"><span class="label">Stop Loss</span><span id="sl" class="value">—</span></div>
-                <div class="row"><span class="label">Take Profit</span><span id="tp" class="value">—</span></div>
-                <div class="row"><span class="label">R:R</span><span id="rr" class="value">—</span></div>
-                <div class="row"><span class="label">Buy Level</span><span id="buyLevel" class="value">—</span></div>
-                <div class="row"><span class="label">Sell Level</span><span id="sellLevel" class="value">—</span></div>
-            </div>
-        </div>
-
-        <!-- Trade History -->
-        <div class="card" style="margin-top:12px;">
-            <h3>📜 Trade History</h3>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr><th>Time</th><th>Symbol</th><th>Side</th><th>Entry</th><th>SL</th><th>TP</th><th>Score</th><th>Status</th><th>Reason</th></tr>
+        <!-- Açylan Sdelkalar Taryhy (SQLite Data) -->
+        <div class="bg-gray-800 p-5 rounded-xl border border-gray-700">
+            <h2 class="text-lg font-semibold border-b border-gray-700 pb-3 mb-4">📜 Açylan Sdelkalar Taryhy</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-gray-400">
+                    <thead class="bg-gray-900 text-gray-200">
+                        <tr>
+                            <th class="p-3">Symbol</th>
+                            <th class="p-3">Side</th>
+                            <th class="p-3">Entry Price</th>
+                            <th class="p-3">SL</th>
+                            <th class="p-3">TP</th>
+                            <th class="p-3">Qty</th>
+                            <th class="p-3">Status</th>
+                            <th class="p-3">Wagty</th>
+                        </tr>
                     </thead>
-                    <tbody id="trades"></tbody>
+                    <tbody id="history-table">
+                        <!-- Dynamic Rows -->
+                    </tbody>
                 </table>
             </div>
         </div>
 
     </div>
-</div>
 
-<script>
-// ============================================================
-// UTILITIES
-// ============================================================
-const $ = id => document.getElementById(id);
-let cachedState = {};
-let updateCount = 0;
-const commonSymbols = [
-    'BTCUSDT', 'ETHUSDT', 'PEPEUSDT', 'DOGEUSDT', 'SOLUSDT',
-    'XRPUSDT', 'ADAUSDT', 'DOTUSDT', 'LTCUSDT', 'AVAXUSDT',
-    'MATICUSDT', 'LINKUSDT', 'UNIUSDT', 'ATOMUSDT', 'ETCUSDT'
-];
+    <script>
+        async function runAnalysis() {
+            const output = document.getElementById("analysis-output");
+            output.innerHTML = `<div class="text-yellow-500 font-semibold animate-pulse">Analiz geçirilýär, garaşyň...</div>`;
 
-function fmtPrice(v) {
-    if (v === null || v === undefined || Number.isNaN(Number(v))) return "—";
-    return Number(v).toFixed(8).replace(/\.?0+$/, "");
-}
+            const data = {
+                symbol: document.getElementById("symbol").value,
+                entry_tf: document.getElementById("entry_tf").value,
+                htf_tf: document.getElementById("htf_tf").value,
+                margin: document.getElementById("margin").value,
+                leverage: document.getElementById("leverage").value,
+                auto_trade: document.getElementById("auto_trade").checked
+            };
 
-function fmt(v, digits=8) {
-    if (v === null || v === undefined || Number.isNaN(Number(v))) return "—";
-    return Number(v).toFixed(digits).replace(/\.?0+$/, "");
-}
+            try {
+                const res = await fetch("/api/analyze", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
 
-function setIndicator(id, value) {
-    const el = $(id);
-    if (!el) return;
-    
-    if (value === true || value === "YES" || value === "✅ YES") {
-        el.textContent = "✅ YES";
-        el.className = "value true";
-    } else if (value === false || value === "NO" || value === "❌ NO") {
-        el.textContent = "❌ NO";
-        el.className = "value false";
-    } else if (value && typeof value === 'object' && value !== null) {
-        el.textContent = "✅ YES";
-        el.className = "value true";
-    } else if (value && value !== "—" && value !== null && value !== undefined) {
-        el.textContent = value;
-        el.className = "value";
-    } else {
-        el.textContent = "❌ NO";
-        el.className = "value false";
-    }
-}
+                if (result.status === "success") {
+                    const a = result.analysis;
+                    let signalColor = a.signal === "BUY" ? "text-green-400" : (a.signal === "SELL" ? "text-red-400" : "text-gray-400");
+                    
+                    output.innerHTML = `
+                        <div class="grid grid-cols-2 gap-4 bg-gray-900 p-4 rounded-lg">
+                            <div><span class="text-gray-500">Häzirki Baha:</span> <b class="text-white">${a.price}</b></div>
+                            <div><span class="text-gray-500">HTF Trend:</span> <b class="${a.htf_trend === 'BULLISH' ? 'text-green-400' : 'text-red-400'}">${a.htf_trend}</b></div>
+                            <div><span class="text-gray-500">FVG Görünüşi:</span> <b class="text-yellow-400">${a.fvg_type || 'Ýok'}</b></div>
+                            <div><span class="text-gray-500">Signal:</span> <b class="${signalColor} text-xl">${a.signal}</b></div>
+                        </div>
+                        
+                        <div class="bg-gray-900 p-4 rounded-lg space-y-1 text-sm">
+                            <div><b>OB ZONA:</b> ${a.ob_zone ? `${a.ob_zone[0]} - ${a.ob_zone[1]}` : 'Tapylmady'}</div>
+                            <div><b>FVG ZONA:</b> ${a.fvg_zone ? `${a.fvg_zone[0]} - ${a.fvg_zone[1]}` : 'Tapylmady'}</div>
+                        </div>
 
-function zoneText(z) {
-    if (!z) return "—";
-    return `${fmtPrice(z.low)} - ${fmtPrice(z.high)}`;
-}
-
-function setList(id, items, className) {
-    const el = $(id);
-    if (!el) return;
-    el.innerHTML = "";
-    if (items && items.length > 0) {
-        items.forEach(item => {
-            const li = document.createElement("li");
-            li.className = className || "";
-            li.textContent = item;
-            el.appendChild(li);
-        });
-    } else {
-        const li = document.createElement("li");
-        li.className = "neutral";
-        li.textContent = "No confluence";
-        el.appendChild(li);
-    }
-}
-
-function updatePositions(positions) {
-    const el = $("positions");
-    if (!el) return;
-    if (!positions || positions.length === 0) {
-        el.innerHTML = '<div class="muted" style="text-align:center;padding:10px;font-size:12px;">No open positions</div>';
-        $("posCount").textContent = "0";
-        return;
-    }
-    $("posCount").textContent = positions.length;
-    el.innerHTML = "";
-    positions.forEach(p => {
-        const div = document.createElement("div");
-        div.className = "position-item";
-        const pnl = Number(p.unrealized_pnl || 0);
-        const pnlClass = pnl >= 0 ? "pos-pnl-positive" : "pos-pnl-negative";
-        div.innerHTML = `
-            <span class="pos-side-${p.side}">${p.side}</span>
-            <span>${fmtPrice(p.entry_price)}</span>
-            <span>${fmt(p.size)}</span>
-            <span class="${pnlClass}">${pnl >= 0 ? '+' : ''}$${fmt(pnl, 2)}</span>
-        `;
-        el.appendChild(div);
-    });
-}
-
-function updateTrades(trades) {
-    const body = $("trades");
-    if (!body) return;
-    body.innerHTML = "";
-    (trades || []).forEach(t => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${t.created_at || ""}</td>
-            <td>${t.symbol || ""}</td>
-            <td class="${t.side === "BUY" ? "BUY" : "SELL"}">${t.side || ""}</td>
-            <td>${fmtPrice(t.entry_price)}</td>
-            <td>${fmtPrice(t.sl)}</td>
-            <td>${fmtPrice(t.tp)}</td>
-            <td><span class="tag">${t.signal_score ?? 0}</span></td>
-            <td>${t.status || ""}</td>
-            <td style="font-size:11px;">${t.reason || ""}</td>
-        `;
-        body.appendChild(tr);
-    });
-}
-
-function getState() { return cachedState; }
-
-// ============================================================
-// SYMBOL SEARCH
-// ============================================================
-function searchSymbol(value) {
-    const suggestions = $("suggestions");
-    if (!value || value.length < 1) {
-        suggestions.className = "suggestions";
-        return;
-    }
-    const matches = commonSymbols.filter(s => 
-        s.toLowerCase().includes(value.toLowerCase())
-    );
-    if (matches.length > 0) {
-        suggestions.className = "suggestions active";
-        suggestions.innerHTML = matches.map(s => 
-            `<div onclick="selectSymbol('${s}')">${s}</div>`
-        ).join('');
-    } else {
-        suggestions.className = "suggestions";
-    }
-}
-
-function selectSymbol(symbol) {
-    $("symbol").value = symbol;
-    $("suggestions").className = "suggestions";
-}
-
-function clearSymbol() {
-    $("symbol").value = "";
-    $("suggestions").className = "suggestions";
-}
-
-// ============================================================
-// UPDATE ANALYSIS
-// ============================================================
-function updateAnalysis(a) {
-    if (!a) return;
-
-    $("price").textContent = fmtPrice(a.price);
-    $("rsi").textContent = a.rsi !== undefined ? Number(a.rsi).toFixed(1) : "—";
-    $("ltf").textContent = a.ltf_bias || "—";
-    $("htfBias").textContent = a.htf_bias || "—";
-    $("location").textContent = a.location || "—";
-    $("atrValue").textContent = fmt(a.atr);
-
-    const signal = a.signal || "WAIT";
-    $("signalText").textContent = signal;
-    $("signalText").className = "signal-text " + signal;
-    $("buyScore").textContent = a.buy_score ?? 0;
-    $("sellScore").textContent = a.sell_score ?? 0;
-    $("confidence").textContent = a.confidence ?? 0;
-
-    const events = a.events || [];
-    setIndicator("bosUp", events.some(e => e.type === "BOS_UP"));
-    setIndicator("bosDown", events.some(e => e.type === "BOS_DOWN"));
-    setIndicator("chochUp", events.some(e => e.type === "CHOCH_UP"));
-    setIndicator("chochDown", events.some(e => e.type === "CHOCH_DOWN"));
-
-    const liq = a.liquidity || {};
-    setIndicator("buySweep", liq.buy_side_sweep);
-    setIndicator("sellSweep", liq.sell_side_sweep);
-    $("buyLevel").textContent = fmtPrice(liq.buy_side_level);
-    $("sellLevel").textContent = fmtPrice(liq.sell_side_level);
-
-    setIndicator("bullFvg", a.bullish_fvg ? true : false);
-    setIndicator("bearFvg", a.bearish_fvg ? true : false);
-    if (a.bullish_fvg) {
-        $("bullFvg").textContent = zoneText(a.bullish_fvg);
-        $("bullFvg").className = "value true";
-    }
-    if (a.bearish_fvg) {
-        $("bearFvg").textContent = zoneText(a.bearish_fvg);
-        $("bearFvg").className = "value true";
-    }
-
-    setIndicator("bullOb", a.bullish_ob ? true : false);
-    setIndicator("bearOb", a.bearish_ob ? true : false);
-    if (a.bullish_ob) {
-        $("bullOb").textContent = zoneText(a.bullish_ob);
-        $("bullOb").className = "value true";
-    }
-    if (a.bearish_ob) {
-        $("bearOb").textContent = zoneText(a.bearish_ob);
-        $("bearOb").className = "value true";
-    }
-
-    setIndicator("discount", a.location === "DISCOUNT");
-    setIndicator("premium", a.location === "PREMIUM");
-
-    setList("buyReasons", a.buy_reasons || [], "buy-reason");
-    setList("sellReasons", a.sell_reasons || [], "sell-reason");
-
-    $("rangeHigh").textContent = fmtPrice(a.range_high);
-    $("eq").textContent = fmtPrice(a.equilibrium);
-    $("rangeLow").textContent = fmtPrice(a.range_low);
-    $("support").textContent = fmtPrice(a.support);
-    $("resistance").textContent = fmtPrice(a.resistance);
-    $("scan").textContent = getState().bot_state?.last_scan || "—";
-    
-    if (events.length > 0) {
-        $("bosEvents").textContent = events.map(e => e.type).join(", ");
-    } else {
-        $("bosEvents").textContent = "None";
-    }
-
-    $("entry").textContent = fmtPrice(a.price);
-    $("sl").textContent = fmtPrice(a.sl);
-    $("tp").textContent = fmtPrice(a.tp);
-    $("rr").textContent = a.rr ? `${a.rr}:1` : "—";
-}
-
-// ============================================================
-// DASHBOARD REFRESH
-// ============================================================
-async function refresh() {
-    try {
-        updateCount++;
-        const res = await fetch("/api/dashboard");
-        const data = await res.json();
-        cachedState = data;
-
-        const bs = data.bot_state || {};
-
-        $("balance").textContent = data.balance === null ? "❌ Error" : `$${fmt(data.balance, 2)}`;
-        $("mode").textContent = data.balance_error ? "⚠️ API Error" : "✅ Connected";
-
-        $("statusDot").className = "dot" + (bs.running ? " on" : "");
-        $("statusText").textContent = bs.running ? "Running" : "Stopped";
-        $("lastUpdate").textContent = new Date().toLocaleTimeString();
-        $("updateCount").textContent = `#${updateCount}`;
-
-        $("logs").textContent = (bs.logs || []).join("\n") || "Waiting...";
-        $("error").textContent = bs.last_error || "";
-
-        updateAnalysis(bs.analysis);
-        updateTrades(data.trades);
-        updatePositions(bs.positions || []);
-    } catch (e) {
-        $("error").textContent = "Refresh error: " + e.message;
-    }
-}
-
-// ============================================================
-// BOT CONTROLS
-// ============================================================
-async function startBot() {
-    const symbol = $("symbol").value.trim().toUpperCase();
-    if (!symbol) {
-        $("error").textContent = "❌ Symbol ýazyň!";
-        return;
-    }
-    
-    const payload = {
-        symbol: symbol,
-        timeframe: $("timeframe").value,
-        htf_timeframe: $("htf").value,
-        amount: Number($("amount").value),
-        leverage: Number($("leverage").value)
-    };
-
-    $("error").textContent = "🔄 Bot işledilýär...";
-    try {
-        const res = await fetch("/api/start", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        $("error").textContent = data.message || data.status || "";
-        await refresh();
-    } catch (e) {
-        $("error").textContent = "Start error: " + e.message;
-    }
-}
-
-async function stopBot() {
-    $("error").textContent = "⏹ Bot saklanýar...";
-    try {
-        const res = await fetch("/api/stop", {method: "POST"});
-        const data = await res.json();
-        $("error").textContent = data.message || "";
-        await refresh();
-    } catch (e) {
-        $("error").textContent = "Stop error: " + e.message;
-    }
-}
-
-async function manualAnalyze() {
-    const symbol = $("symbol").value.trim().toUpperCase();
-    if (!symbol) {
-        $("error").textContent = "❌ Symbol ýazyň!";
-        return;
-    }
-    
-    $("error").textContent = "🔍 Analiz edilýär...";
-    try {
-        const res = await fetch("/api/analyze", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                symbol: symbol,
-                timeframe: $("timeframe").value,
-                htf_timeframe: $("htf").value
-            })
-        });
-        const data = await res.json();
-        if (data.status === "success") {
-            $("error").textContent = "✅ Analiz tamamlandy";
-            updateAnalysis(data.analysis);
-        } else {
-            $("error").textContent = data.message || "Analysis error";
+                        ${result.trade_executed ? `<div class="p-3 bg-green-500/20 text-green-400 rounded">${result.trade_message}</div>` : ''}
+                    `;
+                    loadHistory();
+                } else {
+                    output.innerHTML = `<div class="text-red-500">${result.message}</div>`;
+                }
+            } catch (err) {
+                output.innerHTML = `<div class="text-red-500">Ýalňyşlyk ýüze çykdy: ${err}</div>`;
+            }
         }
-    } catch (e) {
-        $("error").textContent = "Analysis error: " + e.message;
-    }
-    await refresh();
-}
 
-async function syncTime() {
-    $("error").textContent = "🔄 Wagt synhronizirlenýär...";
-    try {
-        const res = await fetch("/api/sync-time", {method: "POST"});
-        const data = await res.json();
-        $("error").textContent = data.message || "✅ Wagt synhronizirlendi";
-    } catch (e) {
-        $("error").textContent = "Sync error: " + e.message;
-    }
-    await refresh();
-}
+        async function loadHistory() {
+            const res = await fetch("/api/history");
+            const data = await res.json();
+            const table = document.getElementById("history-table");
+            table.innerHTML = "";
 
-// ============================================================
-// AUTO REFRESH
-// ============================================================
-refresh();
-setInterval(refresh, 2000);
+            data.trades.forEach(t => {
+                table.innerHTML += `
+                    <tr class="border-b border-gray-800">
+                        <td class="p-3 font-bold">${t.symbol}</td>
+                        <td class="p-3 ${t.side === 'Buy' ? 'text-green-400' : 'text-red-400'}">${t.side}</td>
+                        <td class="p-3">${t.entry_price}</td>
+                        <td class="p-3 text-red-400">${t.sl}</td>
+                        <td class="p-3 text-green-400">${t.tp}</td>
+                        <td class="p-3">${t.qty}</td>
+                        <td class="p-3"><span class="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-xs">${t.status}</span></td>
+                        <td class="p-3 text-xs">${t.timestamp}</td>
+                    </tr>
+                `;
+            });
+        }
 
-// Enter bilen start
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && document.activeElement === $("symbol")) {
-        startBot();
-    }
-});
-</script>
+        // On Load
+        loadHistory();
+    </script>
 </body>
 </html>
