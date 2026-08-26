@@ -251,4 +251,8 @@ def history():
     return jsonify({"trades": trades})
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    import os
+    # Render berýän PORT-y alýar, tapmasa 5000 ulanýar
+    port = int(os.environ.get("PORT", 5000))
+    # host="0.0.0.0" Bolsa serwer daşary bilen habarlaşyp bilýär
+    app.run(host="0.0.0.0", port=port)
