@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="tk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMC Trader Dashboard</title>
+    <style>
+        :root {
+            --bg: #0b1020;
+            --card: #11182b;
+            --card2: #0d1426;
+            --text: #e8edf7;
+            --muted: #8f9bb3;
+            --border: #25304a;
+            --green: #24d18a;
+            --red: #ff5d73;
+            --yellow: #f5c451;
+            --blue: #5b8cff;
+            --purple: #a78bfa;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Inter, Arial, sans-serif;
+        }
+
+        header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border);
+            background: #0d1324;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        h1, h2, h3 { margin: 0; }
+        h1 { font-size: 22px; }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--muted);
+            font-size: 13px;
+            flex-wrap: wrap;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--red);
+            transition: background 0.3s;
+        }
+
+        .dot.on { background: var(--green); }
+
+        main {
+            max-width: 1500px;
+            margin: auto;
+            padding: 22px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 18px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px;
+            box-shadow: 0 8px 30px rgba(0,0,0,.15);
+        }
+
+        .card + .card { margin-top: 18px; }
+
+        label {
+            display: block;
+            margin: 12px 0 6px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 11px 12px;
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            background: var(--card2);
+            color: var(--text);
+            outline: none;
+            font-size: 14px;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--blue);
+        }
+
+        button {
+            border: 0;
+            border-radius: 9px;
+            padding: 11px 15px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            opacity: 0.9;
+        }
+
+        .buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .start { background: var(--green); color: #06140f; }
+        .start:hover { box-shadow: 0 4px 20px rgba(36,209,138,0.3); }
+        .stop { background: var(--red); color: #fff; }
+        .stop:hover { box-shadow: 0 4px 20px rgba(255,93,115,0.3); }
+        .analyze { background: var(--blue); color: #fff; width: 100%; margin-top: 10px; }
+        .analyze:hover { box-shadow: 0 4px 20px rgba(91,140,255,0.3); }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .metric {
+            padding: 15px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--card2);
+        }
+
+        .metric small {
+            color: var(--muted);
+            display: block;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .metric strong { 
+            font-size: 18px;
+            font-family: 'Consolas', monospace;
+        }
+
+        .signal {
+            margin-top: 18px;
+            padding: 20px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            background: var(--card2);
+            text-align: center;
+        }
+
+        .signal-value {
+            font-size: 40px;
+            font-weight: 900;
+            margin: 8px 0;
+        }
+
+        .BUY { color: var(--green); }
+        .SELL { color: var(--red); }
+        .WAIT { color: var(--yellow); }
+        .BUY_WEAK { color: #4ade80; }
+        .SELL_WEAK { color: #f87171; }
+
+        .two {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-top: 18px;
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,.05);
+        }
+
+        .row strong {
+            font-family: 'Consolas', monospace;
+            font-weight: 600;
+        }
+
+        .muted { color: var(--muted); }
+
+        ul {
+            margin: 10px 0 0;
+            padding-left: 0;
+            list-style: none;
+        }
+
+        li {
+            margin: 4px 0;
+            padding: 4px 8px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.03);
+            font-size: 13px;
+            font-family: 'Consolas', monospace;
+        }
+
+        .logs {
+            background: #080d19;
+            border-radius: 10px;
+            padding: 12px;
+            height: 260px;
+            overflow: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+
+        .logs::-webkit-scrollbar {
+            width: 4px;
+        }
+        .logs::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            margin-top: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 900px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 10px;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+
+        th { color: var(--muted); font-weight: 600; }
+
+        td {
+            font-family: 'Consolas', monospace;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 7px;
+            background: #1a2338;
+            font-size: 12px;
+        }
+
+        .error {
+            color: var(--red);
+            margin-top: 10px;
+            font-size: 13px;
+            min-height: 20px;
+        }
+
+        .positions {
+            margin-top: 10px;
+        }
+
+        .position-item {
+            padding: 8px 12px;
+            background: var(--card2);
+            border-radius: 8px;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-family: 'Consolas', monospace;
+        }
+
+        .pos-side-Buy { color: var(--green); }
+        .pos-side-Sell { color: var(--red); }
+        .pos-pnl-positive { color: var(--green); }
+        .pos-pnl-negative { color: var(--red); }
+
+        .blink {
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .update-badge {
+            background: var(--border);
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        @media (max-width: 1000px) {
+            .grid { grid-template-columns: 1fr; }
+            .metrics { grid-template-columns: 1fr 1fr; }
+        }
+
+        @media (max-width: 600px) {
+            main { padding: 12px; }
+            .metrics, .two { grid-template-columns: 1fr; }
+            header { padding: 14px; }
+            .header-row { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+
+<body>
+<header>
+    <div class="header-row">
+        <h1>📊 SMC Trader Dashboard</h1>
+        <div class="status">
+            <span id="statusDot" class="dot"></span>
+            <span id="statusText">Stopped</span>
+            <span class="update-badge" id="lastUpdate">—</span>
+            <span class="update-badge" id="updateCount">0</span>
+        </div>
+    </div>
+</header>
+
+<main>
+    <div class="grid">
+
+        <aside>
+            <div class="card">
+                <h3>⚙️ Bot sazlamalary</h3>
+
+                <label>Symbol</label>
+                <input id="symbol" value="BTCUSDT">
+
+                <label>Entry timeframe</label>
+                <select id="timeframe">
+                    <option value="5">5m</option>
+                    <option value="15" selected>15m</option>
+                    <option value="30">30m</option>
+                    <option value="60">1H</option>
+                    <option value="240">4H</option>
+                </select>
+
+                <label>HTF timeframe</label>
+                <select id="htf">
+                    <option value="30">30m</option>
+                    <option value="60" selected>1H</option>
+                    <option value="240">4H</option>
+                    <option value="D">1D</option>
+                </select>
+
+                <label>Margin (USDT)</label>
+                <input id="amount" type="number" min="1" step="1" value="10">
+
+                <label>Leverage</label>
+                <input id="leverage" type="number" min="1" max="100" step="1" value="5">
+
+                <div class="buttons">
+                    <button class="start" onclick="startBot()">▶ START</button>
+                    <button class="stop" onclick="stopBot()">⏹ STOP</button>
+                </div>
+
+                <button class="analyze" onclick="manualAnalyze()">🔍 Manual SMC Analysis</button>
+                <div id="error" class="error"></div>
+            </div>
+
+            <div class="card">
+                <h3>💰 Account</h3>
+                <div class="row">
+                    <span class="muted">USDT Equity</span>
+                    <strong id="balance">—</strong>
+                </div>
+                <div class="row">
+                    <span class="muted">Mode</span>
+                    <strong id="mode">—</strong>
+                </div>
+                <div class="row">
+                    <span class="muted">Open Positions</span>
+                    <strong id="posCount">0</strong>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>📋 Open Positions</h3>
+                <div id="positions" class="positions">
+                    <div class="muted" style="text-align:center;padding:12px;">No open positions</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>📝 Logs</h3>
+                <div id="logs" class="logs">Waiting...</div>
+            </div>
+        </aside>
+
+        <section>
+            <div class="metrics">
+                <div class="metric">
+                    <small>Price</small>
+                    <strong id="price">—</strong>
+                </div>
+                <div class="metric">
+                    <small>LTF Bias</small>
+                    <strong id="ltf">—</strong>
+                </div>
+                <div class="metric">
+                    <small>HTF Bias</small>
+                    <strong id="htfBias">—</strong>
+                </div>
+                <div class="metric">
+                    <small>RSI</small>
+                    <strong id="rsi">—</strong>
+                </div>
+            </div>
+
+            <div class="signal">
+                <div class="muted">SMC NET SIGNAL</div>
+                <div id="signal" class="signal-value WAIT">WAIT</div>
+                <div>
+                    BUY: <b id="buyScore">0</b>
+                    &nbsp; | &nbsp;
+                    SELL: <b id="sellScore">0</b>
+                    &nbsp; | &nbsp;
+                    Confidence: <b id="confidence">0</b>
+                </div>
+                <div class="muted" style="margin-top:8px">
+                    Location: <b id="location">—</b>
+                    &nbsp; | &nbsp;
+                    ATR: <b id="atrValue">—</b>
+                </div>
+            </div>
+
+            <div class="two">
+                <div class="card">
+                    <h3>🎯 Risk plan</h3>
+                    <div class="row"><span class="muted">Entry</span><strong id="entry">—</strong></div>
+                    <div class="row"><span class="muted">Stop Loss</span><strong id="sl">—</strong></div>
+                    <div class="row"><span class="muted">Take Profit</span><strong id="tp">—</strong></div>
+                    <div class="row"><span class="muted">R:R</span><strong id="rr">—</strong></div>
+                    <div class="row"><span class="muted">Support</span><strong id="support">—</strong></div>
+                    <div class="row"><span class="muted">Resistance</span><strong id="resistance">—</strong></div>
+                </div>
+
+                <div class="card">
+                    <h3>📈 Structure</h3>
+                    <div class="row"><span class="muted">Range High</span><strong id="rangeHigh">—</strong></div>
+                    <div class="row"><span class="muted">Equilibrium</span><strong id="eq">—</strong></div>
+                    <div class="row"><span class="muted">Range Low</span><strong id="rangeLow">—</strong></div>
+                    <div class="row"><span class="muted">Last Scan</span><strong id="scan">—</strong></div>
+                    <div class="row"><span class="muted">BOS/CHoCH</span><strong id="bosEvents">—</strong></div>
+                </div>
+            </div>
+
+            <div class="two">
+                <div class="card">
+                    <h3>🟢 BUY confluence</h3>
+                    <ul id="buyReasons"></ul>
+                </div>
+                <div class="card">
+                    <h3>🔴 SELL confluence</h3>
+                    <ul id="sellReasons"></ul>
+                </div>
+            </div>
+
+            <div class="two">
+                <div class="card">
+                    <h3>🔄 Liquidity</h3>
+                    <div class="row"><span class="muted">Buy-side sweep</span><strong id="buySweep">—</strong></div>
+                    <div class="row"><span class="muted">Sell-side sweep</span><strong id="sellSweep">—</strong></div>
+                    <div class="row"><span class="muted">Buy level</span><strong id="buyLevel">—</strong></div>
+                    <div class="row"><span class="muted">Sell level</span><strong id="sellLevel">—</strong></div>
+                </div>
+                <div class="card">
+                    <h3>📊 Latest zones</h3>
+                    <div class="row"><span class="muted">Bullish FVG</span><strong id="bullFvg">—</strong></div>
+                    <div class="row"><span class="muted">Bearish FVG</span><strong id="bearFvg">—</strong></div>
+                    <div class="row"><span class="muted">Bullish OB</span><strong id="bullOb">—</strong></div>
+                    <div class="row"><span class="muted">Bearish OB</span><strong id="bearOb">—</strong></div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:18px">
+                <h3>📜 Trade history</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Symbol</th>
+                                <th>Side</th>
+                                <th>Entry</th>
+                                <th>SL</th>
+                                <th>TP</th>
+                                <th>Score</th>
+                                <th>Status</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trades"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let cachedState = {};
+let updateCount = 0;
+
+// ============================================================
+// PRICE FORMATTING - FULL PRECISION
+// ============================================================
+function fmtPrice(v) {
+    if (v === null || v === undefined || Number.isNaN(Number(v))) return "—";
+    // Show full precision - up to 8 decimal places
+    return Number(v).toFixed(8).replace(/\.?0+$/, "");
+}
+
+function fmt(v, digits=8) {
+    if (v === null || v === undefined || Number.isNaN(Number(v))) return "—";
+    return Number(v).toFixed(digits).replace(/\.?0+$/, "");
+}
+
+function fmtShort(v) {
+    if (v === null || v === undefined || Number.isNaN(Number(v))) return "—";
+    return Number(v).toFixed(4).replace(/\.?0+$/, "");
+}
+
+function setList(id, items) {
+    const el = $(id);
+    el.innerHTML = "";
+    if (items && items.length) {
+        items.forEach(x => {
+            const li = document.createElement("li");
+            li.textContent = x;
+            el.appendChild(li);
+        });
+    } else {
+        const li = document.createElement("li");
+        li.className = "muted";
+        li.textContent = "No confirmed confluence";
+        el.appendChild(li);
+    }
+}
+
+function zoneText(z) {
+    if (!z) return "—";
+    return `${fmtPrice(z.low)} - ${fmtPrice(z.high)}`;
+}
+
+function updatePositions(positions) {
+    const el = $("positions");
+    if (!positions || positions.length === 0) {
+        el.innerHTML = '<div class="muted" style="text-align:center;padding:12px;">No open positions</div>';
+        $("posCount").textContent = "0";
+        return;
+    }
+    
+    $("posCount").textContent = positions.length;
+    el.innerHTML = "";
+    positions.forEach(p => {
+        const div = document.createElement("div");
+        div.className = "position-item";
+        const pnl = Number(p.unrealized_pnl || 0);
+        const pnlClass = pnl >= 0 ? "pos-pnl-positive" : "pos-pnl-negative";
+        div.innerHTML = `
+            <span class="pos-side-${p.side}">${p.side}</span>
+            <span>${fmtPrice(p.entry_price)}</span>
+            <span>${fmt(p.size)}</span>
+            <span class="${pnlClass}">${pnl >= 0 ? '+' : ''}$${fmt(pnl, 2)}</span>
+        `;
+        el.appendChild(div);
+    });
+}
+
+function updateAnalysis(a) {
+    if (!a) return;
+
+    $("price").textContent = fmtPrice(a.price);
+    $("ltf").textContent = a.ltf_bias || "—";
+    $("htfBias").textContent = a.htf_bias || "—";
+    $("rsi").textContent = fmt(a.rsi, 1);
+
+    const signal = a.signal || "WAIT";
+    $("signal").textContent = signal;
+    $("signal").className = "signal-value " + signal;
+
+    $("buyScore").textContent = a.buy_score ?? 0;
+    $("sellScore").textContent = a.sell_score ?? 0;
+    $("confidence").textContent = a.confidence ?? 0;
+    $("location").textContent = a.location || "—";
+    $("atrValue").textContent = fmt(a.atr);
+
+    $("entry").textContent = fmtPrice(a.price);
+    $("sl").textContent = fmtPrice(a.sl);
+    $("tp").textContent = fmtPrice(a.tp);
+    $("rr").textContent = a.rr ? `${a.rr}:1` : "—";
+    $("support").textContent = fmtPrice(a.support);
+    $("resistance").textContent = fmtPrice(a.resistance);
+
+    $("rangeHigh").textContent = fmtPrice(a.range_high);
+    $("eq").textContent = fmtPrice(a.equilibrium);
+    $("rangeLow").textContent = fmtPrice(a.range_low);
+    $("scan").textContent = getState().bot_state?.last_scan || "—";
+
+    const events = a.events || [];
+    if (events.length > 0) {
+        const eventText = events.map(e => e.type).join(", ");
+        $("bosEvents").textContent = eventText;
+    } else {
+        $("bosEvents").textContent = "None";
+    }
+
+    setList("buyReasons", a.buy_reasons);
+    setList("sellReasons", a.sell_reasons);
+
+    $("buySweep").textContent = a.liquidity?.buy_side_sweep ? "✅ YES" : "❌ NO";
+    $("sellSweep").textContent = a.liquidity?.sell_side_sweep ? "✅ YES" : "❌ NO";
+    $("buyLevel").textContent = fmtPrice(a.liquidity?.buy_side_level);
+    $("sellLevel").textContent = fmtPrice(a.liquidity?.sell_side_level);
+
+    $("bullFvg").textContent = zoneText(a.bullish_fvg);
+    $("bearFvg").textContent = zoneText(a.bearish_fvg);
+    $("bullOb").textContent = zoneText(a.bullish_ob);
+    $("bearOb").textContent = zoneText(a.bearish_ob);
+}
+
+function getState() {
+    return cachedState;
+}
+
+function updateTrades(trades) {
+    const body = $("trades");
+    body.innerHTML = "";
+
+    (trades || []).forEach(t => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${t.created_at || ""}</td>
+            <td>${t.symbol || ""}</td>
+            <td class="${t.side === "BUY" ? "BUY" : "SELL"}">${t.side || ""}</td>
+            <td>${fmtPrice(t.entry_price)}</td>
+            <td>${fmtPrice(t.sl)}</td>
+            <td>${fmtPrice(t.tp)}</td>
+            <td><span class="tag">${t.signal_score ?? 0}</span></td>
+            <td>${t.status || ""}</td>
+            <td style="font-size:12px;">${t.reason || ""}</td>
+        `;
+        body.appendChild(tr);
+    });
+}
+
+async function refresh() {
+    try {
+        updateCount++;
+        const res = await fetch("/api/dashboard");
+        const data = await res.json();
+        cachedState = data;
+
+        const bs = data.bot_state || {};
+
+        $("balance").textContent = data.balance === null ? "❌ Error" : `$${fmt(data.balance, 2)}`;
+        $("mode").textContent = data.balance_error ? "⚠️ API Error" : "✅ Connected";
+
+        $("statusDot").classList.toggle("on", !!bs.running);
+        $("statusText").textContent = bs.running ? "Running" : "Stopped";
+        $("lastUpdate").textContent = new Date().toLocaleTimeString();
+        $("updateCount").textContent = `#${updateCount}`;
+
+        $("logs").textContent = (bs.logs || []).join("\n") || "Waiting...";
+        $("error").textContent = bs.last_error || "";
+
+        updateAnalysis(bs.analysis);
+        updateTrades(data.trades);
+        updatePositions(bs.positions || []);
+    } catch (e) {
+        $("error").textContent = "Refresh error: " + e.message;
+    }
+}
+
+async function startBot() {
+    const payload = {
+        symbol: $("symbol").value.trim(),
+        timeframe: $("timeframe").value,
+        htf_timeframe: $("htf").value,
+        amount: Number($("amount").value),
+        leverage: Number($("leverage").value)
+    };
+
+    try {
+        const res = await fetch("/api/start", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        $("error").textContent = data.message || "";
+        await refresh();
+    } catch (e) {
+        $("error").textContent = "Start error: " + e.message;
+    }
+}
+
+async function stopBot() {
+    try {
+        const res = await fetch("/api/stop", {method: "POST"});
+        const data = await res.json();
+        $("error").textContent = data.message || "";
+        await refresh();
+    } catch (e) {
+        $("error").textContent = "Stop error: " + e.message;
+    }
+}
+
+async function manualAnalyze() {
+    $("error").textContent = "🔍 Analiz edilýär...";
+
+    try {
+        const res = await fetch("/api/analyze", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                symbol: $("symbol").value.trim(),
+                timeframe: $("timeframe").value,
+                htf_timeframe: $("htf").value
+            })
+        });
+
+        const data = await res.json();
+
+        if (data.status === "success") {
+            $("error").textContent = "✅ Analiz tamamlandy";
+            updateAnalysis(data.analysis);
+        } else {
+            $("error").textContent = data.message || "Analysis error";
+        }
+    } catch (e) {
+        $("error").textContent = "Analysis error: " + e.message;
+    }
+
+    await refresh();
+}
+
+// Initial load and auto-refresh
+refresh();
+setInterval(refresh, 2500);
+</script>
+</body>
+</html>
