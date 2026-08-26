@@ -3,32 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Raho SMC Bybit Trading Bot</title>
+    <title>SMC Real-Time Trading Bot</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-white font-sans p-6">
     <div class="max-w-6xl mx-auto space-y-6">
         
-        <!-- Header -->
+        <!-- Header Status -->
         <div class="flex justify-between items-center bg-gray-800 p-4 rounded-xl border border-gray-700">
-            <h1 class="text-2xl font-bold text-yellow-500">⚙️ SMC Bybit Trading Bot</h1>
-            <span class="text-xs bg-green-500/20 text-green-400 px-3 py-1 rounded-full">Bybit API v5 Active</span>
+            <h1 class="text-2xl font-bold text-yellow-500">⚙️ SMC Real-Time Bot</h1>
+            <div class="flex items-center gap-3">
+                <span id="status-badge" class="text-xs bg-red-500/20 text-red-400 px-3 py-1 rounded-full font-bold">
+                    OFFLINE
+                </span>
+            </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            <!-- Bot Sazlamalary Panel -->
+            <!-- Controls Panel -->
             <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-4">
-                <h2 class="text-lg font-semibold border-b border-gray-700 pb-2">Bot Sazlamalary</h2>
+                <h2 class="text-lg font-semibold border-b border-gray-700 pb-2">⚙️ Bot Sazlamalary</h2>
                 
                 <div>
                     <label class="block text-sm text-gray-400 mb-1">Symbol (Moneta ady)</label>
-                    <input id="symbol" type="text" value="BTCUSDT" class="w-full bg-gray-900 border border-gray-700 rounded p-2 focus:border-yellow-500 outline-none uppercase" />
+                    <input id="symbol" type="text" value="BTCUSDT" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-bold uppercase" />
                 </div>
 
                 <div class="grid grid-cols-2 gap-2">
                     <div>
-                        <label class="block text-sm text-gray-400 mb-1">Entry Timeframe</label>
+                        <label class="block text-sm text-gray-400 mb-1">Entry TF</label>
                         <select id="entry_tf" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white">
                             <option value="5m">5m</option>
                             <option value="15m" selected>15m</option>
@@ -38,7 +42,7 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm text-gray-400 mb-1">HTF Timeframe</label>
+                        <label class="block text-sm text-gray-400 mb-1">HTF TF</label>
                         <select id="htf_tf" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white">
                             <option value="30m">30m</option>
                             <option value="1H" selected>1H</option>
@@ -64,23 +68,38 @@
                     <label for="auto_trade" class="text-sm font-medium">Awtomat Sdelka Aç (Auto-Trade)</label>
                 </div>
 
-                <button onclick="runAnalysis()" class="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-2 rounded transition">
-                    Analiz Başlat / Tazale
-                </button>
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                    <button onclick="startBot()" id="btn-start" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded transition">
+                        ▶ Analizi Başlat
+                    </button>
+                    <button onclick="stopBot()" id="btn-stop" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded transition">
+                        ⏹ Stop
+                    </button>
+                </div>
             </div>
 
-            <!-- Analiz Netijeleri Panel -->
+            <!-- Real-Time Output -->
             <div class="md:col-span-2 bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-4">
-                <h2 class="text-lg font-semibold border-b border-gray-700 pb-2">🧠 Smart Money Concept Analysis</h2>
+                <div class="flex justify-between items-center border-b border-gray-700 pb-2">
+                    <h2 class="text-lg font-semibold">🧠 Real-time SMC Analiz Netijeleri</h2>
+                    <span id="last-update" class="text-xs text-gray-400">---</span>
+                </div>
                 
                 <div id="analysis-output" class="space-y-3">
-                    <p class="text-gray-400">Analiz netijelerini görmek üçin monetany girizip, başlaň...</p>
+                    <p class="text-gray-400">Analiz başlatylmady...</p>
+                </div>
+
+                <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
+                    <h3 class="text-xs font-bold text-gray-400 mb-1">LOGS / STATUS</h3>
+                    <div id="logs-container" class="text-xs font-mono text-yellow-400 space-y-1">
+                        <!-- Logs -->
+                    </div>
                 </div>
             </div>
 
         </div>
 
-        <!-- Açylan Sdelkalar Taryhy (SQLite Data) -->
+        <!-- History -->
         <div class="bg-gray-800 p-5 rounded-xl border border-gray-700">
             <h2 class="text-lg font-semibold border-b border-gray-700 pb-3 mb-4">📜 Açylan Sdelkalar Taryhy</h2>
             <div class="overflow-x-auto">
@@ -97,9 +116,7 @@
                             <th class="p-3">Wagty</th>
                         </tr>
                     </thead>
-                    <tbody id="history-table">
-                        <!-- Dynamic Rows -->
-                    </tbody>
+                    <tbody id="history-table"></tbody>
                 </table>
             </div>
         </div>
@@ -107,10 +124,9 @@
     </div>
 
     <script>
-        async function runAnalysis() {
-            const output = document.getElementById("analysis-output");
-            output.innerHTML = `<div class="text-yellow-500 font-semibold animate-pulse">Analiz geçirilýär, garaşyň...</div>`;
+        let intervalId = null;
 
+        async function startBot() {
             const data = {
                 symbol: document.getElementById("symbol").value,
                 entry_tf: document.getElementById("entry_tf").value,
@@ -120,40 +136,63 @@
                 auto_trade: document.getElementById("auto_trade").checked
             };
 
-            try {
-                const res = await fetch("/api/analyze", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(data)
-                });
-                const result = await res.json();
+            await fetch("/api/start", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            });
 
-                if (result.status === "success") {
-                    const a = result.analysis;
-                    let signalColor = a.signal === "BUY" ? "text-green-400" : (a.signal === "SELL" ? "text-red-400" : "text-gray-400");
-                    
-                    output.innerHTML = `
-                        <div class="grid grid-cols-2 gap-4 bg-gray-900 p-4 rounded-lg">
-                            <div><span class="text-gray-500">Häzirki Baha:</span> <b class="text-white">${a.price}</b></div>
-                            <div><span class="text-gray-500">HTF Trend:</span> <b class="${a.htf_trend === 'BULLISH' ? 'text-green-400' : 'text-red-400'}">${a.htf_trend}</b></div>
-                            <div><span class="text-gray-500">FVG Görünüşi:</span> <b class="text-yellow-400">${a.fvg_type || 'Ýok'}</b></div>
-                            <div><span class="text-gray-500">Signal:</span> <b class="${signalColor} text-xl">${a.signal}</b></div>
-                        </div>
-                        
-                        <div class="bg-gray-900 p-4 rounded-lg space-y-1 text-sm">
-                            <div><b>OB ZONA:</b> ${a.ob_zone ? `${a.ob_zone[0]} - ${a.ob_zone[1]}` : 'Tapylmady'}</div>
-                            <div><b>FVG ZONA:</b> ${a.fvg_zone ? `${a.fvg_zone[0]} - ${a.fvg_zone[1]}` : 'Tapylmady'}</div>
-                        </div>
-
-                        ${result.trade_executed ? `<div class="p-3 bg-green-500/20 text-green-400 rounded">${result.trade_message}</div>` : ''}
-                    `;
-                    loadHistory();
-                } else {
-                    output.innerHTML = `<div class="text-red-500">${result.message}</div>`;
-                }
-            } catch (err) {
-                output.innerHTML = `<div class="text-red-500">Ýalňyşlyk ýüze çykdy: ${err}</div>`;
+            if (!intervalId) {
+                intervalId = setInterval(pollStatus, 3000); // 3 sekuntdan interfeýsi täzeleýär
             }
+        }
+
+        async function stopBot() {
+            await fetch("/api/stop", { method: "POST" });
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+            pollStatus();
+        }
+
+        async function pollStatus() {
+            const res = await fetch("/api/status");
+            const data = await res.json();
+
+            const badge = document.getElementById("status-badge");
+            if (data.is_running) {
+                badge.className = "text-xs bg-green-500/20 text-green-400 px-3 py-1 rounded-full font-bold animate-pulse";
+                badge.innerText = "ONLINE - ANALIZ GIDÝÄR...";
+            } else {
+                badge.className = "text-xs bg-red-500/20 text-red-400 px-3 py-1 rounded-full font-bold";
+                badge.innerText = "OFFLINE - STOP EDILDI";
+            }
+
+            if (data.analysis) {
+                const a = data.analysis;
+                let signalColor = a.signal === "BUY" ? "text-green-400" : (a.signal === "SELL" ? "text-red-400" : "text-gray-400");
+                
+                document.getElementById("last-update").innerText = "Täzelenen wagty: " + a.timestamp;
+                document.getElementById("analysis-output").innerHTML = `
+                    <div class="grid grid-cols-2 gap-4 bg-gray-900 p-4 rounded-lg">
+                        <div><span class="text-gray-500">Häzirki Baha:</span> <b class="text-white">${a.price}</b></div>
+                        <div><span class="text-gray-500">HTF Trend:</span> <b class="${a.htf_trend === 'BULLISH' ? 'text-green-400' : 'text-red-400'}">${a.htf_trend}</b></div>
+                        <div><span class="text-gray-500">FVG Görünüşi:</span> <b class="text-yellow-400">${a.fvg_type || 'Ýok'}</b></div>
+                        <div><span class="text-gray-500">Signal:</span> <b class="${signalColor} text-xl">${a.signal}</b></div>
+                    </div>
+                    
+                    <div class="bg-gray-900 p-4 rounded-lg space-y-1 text-sm">
+                        <div><b>OB ZONA:</b> ${a.ob_zone ? `${a.ob_zone[0]} - ${a.ob_zone[1]}` : 'Tapylmady'}</div>
+                        <div><b>FVG ZONA:</b> ${a.fvg_zone ? `${a.fvg_zone[0]} - ${a.fvg_zone[1]}` : 'Tapylmady'}</div>
+                    </div>
+                `;
+            }
+
+            const logsDiv = document.getElementById("logs-container");
+            logsDiv.innerHTML = data.logs.map(l => `<div>${l}</div>`).join("");
+
+            loadHistory();
         }
 
         async function loadHistory() {
@@ -178,8 +217,8 @@
             });
         }
 
-        // On Load
-        loadHistory();
+        // Periodic Check on Load
+        pollStatus();
     </script>
 </body>
 </html>

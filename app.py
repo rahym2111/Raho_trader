@@ -5,6 +5,7 @@ import requests
 import hmac
 import hashlib
 import time
+import threading
 import pandas as pd
 import numpy as np
 from flask import Flask, render_template, request, jsonify
@@ -14,13 +15,24 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# Config
 API_KEY = os.getenv("BYBIT_API_KEY")
 API_SECRET = os.getenv("BYBIT_API_SECRET")
 BASE_URL = os.getenv("BYBIT_URL", "https://api.bybit.com")
 DB_NAME = os.getenv("DB_NAME", "trades.db")
 
-# Init DB
+# Global Real-time State Control
+bot_state = {
+    "is_running": False,
+    "symbol": "BTCUSDT",
+    "entry_tf": "15m",
+    "htf_tf": "1H",
+    "margin": 10.0,
+    "leverage": 10,
+    "auto_trade": False,
+    "last_analysis": None,
+    "logs": []
+}
+
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -42,7 +54,6 @@ def init_db():
 
 init_db()
 
-# Bybit v5 Signature Request Helper
 def pybit_request(endpoint, method="GET", params=None):
     if params is None:
         params = {}
@@ -80,9 +91,7 @@ def pybit_request(endpoint, method="GET", params=None):
     except Exception as e:
         return {"retCode": -1, "retMsg": str(e)}
 
-# Get Kline Data
 def fetch_klines(symbol, interval, limit=100):
-    # Timeframe mapping for Bybit
     tf_map = {"5m": "5", "15m": "15", "30m": "30", "1H": "60", "4H": "240", "1D": "D"}
     bybit_tf = tf_map.get(interval, "15")
     
@@ -102,33 +111,23 @@ def fetch_klines(symbol, interval, limit=100):
         return df
     return None
 
-# Advanced SMC Analyzer Strategy
 def smc_analysis(df_entry, df_htf):
-    # 1. HTF Market Structure Trend (EMA / BOS simplification)
     df_htf['ema200'] = df_htf['close'].ewm(span=200, adjust=False).mean()
     htf_trend = "BULLISH" if df_htf['close'].iloc[-1] > df_htf['ema200'].iloc[-1] else "BEARISH"
 
-    # 2. LTF FVG (Fair Value Gap) Detection
-    # Bullish FVG: Low(i) > High(i-2)
-    # Bearish FVG: High(i) < Low(i-2)
     fvg_type = None
     fvg_zone = None
 
     for i in range(len(df_entry) - 2, len(df_entry) - 10, -1):
-        # Bullish FVG
         if df_entry['low'].iloc[i] > df_entry['high'].iloc[i-2]:
             fvg_type = "BULLISH"
             fvg_zone = (df_entry['high'].iloc[i-2], df_entry['low'].iloc[i])
             break
-        # Bearish FVG
         elif df_entry['high'].iloc[i] < df_entry['low'].iloc[i-2]:
             fvg_type = "BEARISH"
             fvg_zone = (df_entry['high'].iloc[i], df_entry['low'].iloc[i-2])
             break
 
-    # 3. Order Block (OB) Identification
-    # Bullish OB: Last down candle before strong move up
-    # Bearish OB: Last up candle before strong move down
     ob_zone = None
     if fvg_type == "BULLISH":
         ob_candle = df_entry.iloc[-5:-2][df_entry['close'] < df_entry['open']].tail(1)
@@ -139,7 +138,6 @@ def smc_analysis(df_entry, df_htf):
         if not ob_candle.empty:
             ob_zone = (ob_candle['low'].values[0], ob_candle['high'].values[0])
 
-    # Signal Logic Alignment
     signal = "NEUTRAL"
     curr_price = df_entry['close'].iloc[-1]
     
@@ -154,12 +152,11 @@ def smc_analysis(df_entry, df_htf):
         "fvg_type": fvg_type,
         "fvg_zone": fvg_zone,
         "ob_zone": ob_zone,
-        "price": curr_price
+        "price": curr_price,
+        "timestamp": time.strftime("%H:%M:%S")
     }
 
-# Execute Trade
 def execute_trade(symbol, side, margin, leverage, price):
-    # Set Leverage
     pybit_request("/v5/position/set-leverage", "POST", {
         "category": "linear",
         "symbol": symbol,
@@ -185,7 +182,6 @@ def execute_trade(symbol, side, margin, leverage, price):
     res = pybit_request("/v5/order/create", "POST", order_payload)
 
     if res.get("retCode") == 0:
-        # Save to DB
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute('''
@@ -197,41 +193,66 @@ def execute_trade(symbol, side, margin, leverage, price):
         return True, "Sdelka üstünlikli açyldy!"
     return False, res.get("retMsg", "Ýalňyşlyk ýüze çykdy")
 
-# API Routes
+# Real-time Background Loop
+def bot_loop():
+    while True:
+        if bot_state["is_running"]:
+            try:
+                symbol = bot_state["symbol"]
+                entry_tf = bot_state["entry_tf"]
+                htf_tf = bot_state["htf_tf"]
+
+                df_entry = fetch_klines(symbol, entry_tf)
+                df_htf = fetch_klines(symbol, htf_tf)
+
+                if df_entry is not None and df_htf is not None:
+                    res_analysis = smc_analysis(df_entry, df_htf)
+                    bot_state["last_analysis"] = res_analysis
+
+                    # Auto Trade Trigger
+                    if bot_state["auto_trade"] and res_analysis["signal"] in ["BUY", "SELL"]:
+                        side = "Buy" if res_analysis["signal"] == "BUY" else "Sell"
+                        success, msg = execute_trade(
+                            symbol, side, bot_state["margin"], bot_state["leverage"], res_analysis["price"]
+                        )
+                        log_msg = f"[{res_analysis['timestamp']}] {side} Order: {msg}"
+                        bot_state["logs"].append(log_msg)
+            except Exception as e:
+                bot_state["logs"].append(f"Error: {str(e)}")
+
+        time.sleep(10) # Her 10 sekuntdan tazeleyar
+
+# Start Background Loop
+threading.Thread(target=bot_loop, daemon=True).start()
+
+# API Endpoints
 @app.route("/")
 def index():
     return render_template("index.html")
 
-@app.route("/api/analyze", methods=["POST"])
-def analyze():
+@app.route("/api/start", methods=["POST"])
+def start_bot():
     data = request.json
-    symbol = data.get("symbol", "").upper()
-    entry_tf = data.get("entry_tf", "15m")
-    htf_tf = data.get("htf_tf", "1H")
-    margin = float(data.get("margin", 10))
-    leverage = int(data.get("leverage", 10))
-    auto_trade = data.get("auto_trade", False)
+    bot_state["symbol"] = data.get("symbol", "BTCUSDT").upper()
+    bot_state["entry_tf"] = data.get("entry_tf", "15m")
+    bot_state["htf_tf"] = data.get("htf_tf", "1H")
+    bot_state["margin"] = float(data.get("margin", 10))
+    bot_state["leverage"] = int(data.get("leverage", 10))
+    bot_state["auto_trade"] = data.get("auto_trade", False)
+    bot_state["is_running"] = True
+    return jsonify({"status": "started", "message": "Real-time analiz başladyldy!"})
 
-    df_entry = fetch_klines(symbol, entry_tf)
-    df_htf = fetch_klines(symbol, htf_tf)
+@app.route("/api/stop", methods=["POST"])
+def stop_bot():
+    bot_state["is_running"] = False
+    return jsonify({"status": "stopped", "message": "Real-time analiz togtadyldy!"})
 
-    if df_entry is None or df_htf is None:
-        return jsonify({"status": "error", "message": "Market maglumatlaryny alyp bolmady."})
-
-    analysis = smc_analysis(df_entry, df_htf)
-    trade_executed = False
-    trade_msg = ""
-
-    if auto_trade and analysis["signal"] in ["BUY", "SELL"]:
-        side = "Buy" if analysis["signal"] == "BUY" else "Sell"
-        trade_executed, trade_msg = execute_trade(symbol, side, margin, leverage, analysis["price"])
-
+@app.route("/api/status", methods=["GET"])
+def get_status():
     return jsonify({
-        "status": "success",
-        "symbol": symbol,
-        "analysis": analysis,
-        "trade_executed": trade_executed,
-        "trade_message": trade_msg
+        "is_running": bot_state["is_running"],
+        "analysis": bot_state["last_analysis"],
+        "logs": bot_state["logs"][-5:]
     })
 
 @app.route("/api/history", methods=["GET"])
@@ -251,8 +272,5 @@ def history():
     return jsonify({"trades": trades})
 
 if __name__ == "__main__":
-    import os
-    # Render berýän PORT-y alýar, tapmasa 5000 ulanýar
     port = int(os.environ.get("PORT", 5000))
-    # host="0.0.0.0" Bolsa serwer daşary bilen habarlaşyp bilýär
     app.run(host="0.0.0.0", port=port)
