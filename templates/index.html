@@ -3,222 +3,249 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMC Real-Time Trading Bot</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>SMC Bybit Futures Trading Bot</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; font-family: 'Segoe UI', sans-serif; }
+        .card { background-color: #161b22; border: 1px solid #30363d; border-radius: 10px; color: #c9d1d9; }
+        .card-header { background-color: #21262d; border-bottom: 1px solid #30363d; font-weight: bold; }
+        .stat-value { font-size: 1.3rem; font-weight: bold; color: #58a6ff; }
+        .badge-bullish { background-color: #2ea043; color: white; }
+        .badge-bearish { background-color: #da3633; color: white; }
+        .badge-neutral { background-color: #8b949e; color: white; }
+        #log-box { background-color: #090d11; height: 220px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding: 10px; border-radius: 5px; color: #3fb950; border: 1px solid #30363d; }
+    </style>
 </head>
-<body class="bg-gray-900 text-white font-sans p-6">
-    <div class="max-w-6xl mx-auto space-y-6">
-        
-        <!-- Header Status -->
-        <div class="flex justify-between items-center bg-gray-800 p-4 rounded-xl border border-gray-700">
-            <h1 class="text-2xl font-bold text-yellow-500">⚙️ SMC Real-Time Bot</h1>
-            <div class="flex items-center gap-3">
-                <span id="status-badge" class="text-xs bg-red-500/20 text-red-400 px-3 py-1 rounded-full font-bold">
-                    OFFLINE
-                </span>
+<body class="py-4">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>⚡ SMC Bybit Bot Terminal</h2>
+            <div>
+                Yagday: <span id="bot-status-badge" class="badge bg-danger">STOPPED</span>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            <!-- Controls Panel -->
-            <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-4">
-                <h2 class="text-lg font-semibold border-b border-gray-700 pb-2">⚙️ Bot Sazlamalary</h2>
-                
-                <div>
-                    <label class="block text-sm text-gray-400 mb-1">Symbol (Moneta ady)</label>
-                    <input id="symbol" type="text" value="BTCUSDT" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-bold uppercase" />
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-sm text-gray-400 mb-1">Entry TF</label>
-                        <select id="entry_tf" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white">
-                            <option value="5m">5m</option>
-                            <option value="15m" selected>15m</option>
-                            <option value="30m">30m</option>
-                            <option value="1H">1H</option>
-                            <option value="4H">4H</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-400 mb-1">HTF TF</label>
-                        <select id="htf_tf" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white">
-                            <option value="30m">30m</option>
-                            <option value="1H" selected>1H</option>
-                            <option value="4H">4H</option>
-                            <option value="1D">1D</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-sm text-gray-400 mb-1">Margin (USDT)</label>
-                        <input id="margin" type="number" value="10" class="w-full bg-gray-900 border border-gray-700 rounded p-2" />
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-400 mb-1">Leverage</label>
-                        <input id="leverage" type="number" value="10" class="w-full bg-gray-900 border border-gray-700 rounded p-2" />
-                    </div>
-                </div>
-
-                <div class="flex items-center gap-2 pt-2">
-                    <input id="auto_trade" type="checkbox" class="w-4 h-4 text-yellow-500 rounded bg-gray-900 border-gray-700" />
-                    <label for="auto_trade" class="text-sm font-medium">Awtomat Sdelka Aç (Auto-Trade)</label>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3 pt-2">
-                    <button onclick="startBot()" id="btn-start" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded transition">
-                        ▶ Analizi Başlat
-                    </button>
-                    <button onclick="stopBot()" id="btn-stop" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded transition">
-                        ⏹ Stop
-                    </button>
-                </div>
-            </div>
-
-            <!-- Real-Time Output -->
-            <div class="md:col-span-2 bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-4">
-                <div class="flex justify-between items-center border-b border-gray-700 pb-2">
-                    <h2 class="text-lg font-semibold">🧠 Real-time SMC Analiz Netijeleri</h2>
-                    <span id="last-update" class="text-xs text-gray-400">---</span>
-                </div>
-                
-                <div id="analysis-output" class="space-y-3">
-                    <p class="text-gray-400">Analiz başlatylmady...</p>
-                </div>
-
-                <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
-                    <h3 class="text-xs font-bold text-gray-400 mb-1">LOGS / STATUS</h3>
-                    <div id="logs-container" class="text-xs font-mono text-yellow-400 space-y-1">
-                        <!-- Logs -->
+        <div class="row g-3">
+            <!-- Sazlamalar Paneli -->
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header">⚙️ Bot Sazlamalary</div>
+                    <div class="card-body">
+                        <form id="bot-config-form">
+                            <div class="mb-2">
+                                <label class="form-label">Simwol (Tiker)</label>
+                                <input type="text" id="symbol" class="form-control bg-dark text-white border-secondary" value="DOGEUSDT">
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col">
+                                    <label class="form-label">Entry TF</label>
+                                    <select id="entry_tf" class="form-select bg-dark text-white border-secondary">
+                                        <option value="5m">5m</option>
+                                        <option value="15m" selected>15m</option>
+                                        <option value="30m">30m</option>
+                                    </select>
+                                </div>
+                                <div class="col">
+                                    <label class="form-label">HTF Trend</label>
+                                    <select id="htf_tf" class="form-select bg-dark text-white border-secondary">
+                                        <option value="1H" selected>1H</option>
+                                        <option value="4H">4H</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col">
+                                    <label class="form-label">Margin ($)</label>
+                                    <input type="number" id="margin" class="form-control bg-dark text-white border-secondary" value="10">
+                                </div>
+                                <div class="col">
+                                    <label class="form-label">Leverage</label>
+                                    <input type="number" id="leverage" class="form-control bg-dark text-white border-secondary" value="10">
+                                </div>
+                            </div>
+                            <div class="form-check form-switch my-3">
+                                <input class="form-check-input" type="checkbox" id="auto_trade">
+                                <label class="form-check-label fw-bold text-warning" for="auto_trade">Awtomatiki Sdelka Aç</label>
+                            </div>
+                            <button type="button" id="btn-start" onclick="startBot()" class="btn btn-success w-100 mb-2">Başlat</button>
+                            <button type="button" id="btn-stop" onclick="stopBot()" class="btn btn-danger w-100" disabled>Togtatmaly</button>
+                        </form>
                     </div>
                 </div>
             </div>
 
+            <!-- Analiz Netijeleri -->
+            <div class="col-md-8">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between">
+                        <span>📊 Real-Time SMC Analiz Netijeleri</span>
+                        <small id="last-update" class="text-muted">Täzelenýär...</small>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center mb-3">
+                            <div class="col-md-3">
+                                <small class="text-muted">Akyldar Signal</small>
+                                <div id="signal-val" class="stat-value"><span class="badge badge-neutral">NEUTRAL</span></div>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted">Häzirki Baha</small>
+                                <div id="price-val" class="stat-value text-white">$0.0000</div>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted">HTF Trend (EMA200)</small>
+                                <div id="htf-val" class="stat-value text-info">-</div>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted">FVG Ýagdaýy</small>
+                                <div id="fvg-val" class="stat-value text-warning">-</div>
+                            </div>
+                        </div>
+
+                        <hr class="border-secondary">
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p class="mb-1"><strong>FVG Zony:</strong> <span id="fvg-zone-val" class="text-info">N/A</span></p>
+                                <p class="mb-1"><strong>Order Block (OB):</strong> <span id="ob-zone-val" class="text-info">N/A</span></p>
+                                <p class="mb-1"><strong>Risk / Reward:</strong> <span id="rr-val" class="text-white">1:2.33</span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p class="mb-1"><strong>Meýilleşdirilen TP:</strong> <span id="tp-val" class="text-success">$0.0000</span></p>
+                                <p class="mb-1"><strong>Meýilleşdirilen SL:</strong> <span id="sl-val" class="text-danger">$0.0000</span></p>
+                                <p class="mb-1"><strong>P&L çaklama (Win/Loss):</strong> <span id="pl-val" class="text-warning">+$0 / -$0</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Terminal Loglar -->
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">🖥️ Ulagam Loglary (Print & System Logs)</div>
+                    <div class="card-body p-2">
+                        <div id="log-box"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Geçmiş Sdelkalar -->
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">📜 Sdelka Geçmişi (Database)</div>
+                    <div class="card-body p-0">
+                        <table class="table table-dark table-striped mb-0 text-center">
+                            <thead>
+                                <tr>
+                                    <th>Simwol</th>
+                                    <th>Görnüşi</th>
+                                    <th>Giriş Bahasy</th>
+                                    <th>SL</th>
+                                    <th>TP</th>
+                                    <th>Mukdar (Qty)</th>
+                                    <th>Status</th>
+                                    <th>Wagty</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table">
+                                <tr><td colspan="8" class="text-muted">Sdelka ýok...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
-
-        <!-- History -->
-        <div class="bg-gray-800 p-5 rounded-xl border border-gray-700">
-            <h2 class="text-lg font-semibold border-b border-gray-700 pb-3 mb-4">📜 Açylan Sdelkalar Taryhy</h2>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm text-gray-400">
-                    <thead class="bg-gray-900 text-gray-200">
-                        <tr>
-                            <th class="p-3">Symbol</th>
-                            <th class="p-3">Side</th>
-                            <th class="p-3">Entry Price</th>
-                            <th class="p-3">SL</th>
-                            <th class="p-3">TP</th>
-                            <th class="p-3">Qty</th>
-                            <th class="p-3">Status</th>
-                            <th class="p-3">Wagty</th>
-                        </tr>
-                    </thead>
-                    <tbody id="history-table"></tbody>
-                </table>
-            </div>
-        </div>
-
     </div>
 
     <script>
-        let intervalId = null;
+        function updateDashboard() {
+            fetch('/api/status')
+                .then(res => res.json())
+                .then(data => {
+                    const badge = document.getElementById('bot-status-badge');
+                    if (data.is_running) {
+                        badge.className = "badge bg-success";
+                        badge.innerText = "RUNNING";
+                        document.getElementById('btn-start').disabled = true;
+                        document.getElementById('btn-stop').disabled = false;
+                    } else {
+                        badge.className = "badge bg-danger";
+                        badge.innerText = "STOPPED";
+                        document.getElementById('btn-start').disabled = false;
+                        document.getElementById('btn-stop').disabled = true;
+                    }
 
-        async function startBot() {
-            const data = {
-                symbol: document.getElementById("symbol").value,
-                entry_tf: document.getElementById("entry_tf").value,
-                htf_tf: document.getElementById("htf_tf").value,
-                margin: document.getElementById("margin").value,
-                leverage: document.getElementById("leverage").value,
-                auto_trade: document.getElementById("auto_trade").checked
+                    if (data.analysis) {
+                        const a = data.analysis;
+                        document.getElementById('price-val').innerText = '$' + a.price;
+                        document.getElementById('htf-val').innerText = a.htf_trend;
+                        document.getElementById('fvg-val').innerText = a.fvg_type;
+                        
+                        let sigHtml = `<span class="badge badge-neutral">${a.signal}</span>`;
+                        if (a.signal === 'BUY') sigHtml = `<span class="badge badge-bullish">BUY 🚀</span>`;
+                        if (a.signal === 'SELL') sigHtml = `<span class="badge badge-bearish">SELL 🔻</span>`;
+                        document.getElementById('signal-val').innerHTML = sigHtml;
+
+                        document.getElementById('fvg-zone-val').innerText = a.fvg_zone.join(' - ');
+                        document.getElementById('ob-zone-val').innerText = a.ob_zone.join(' - ');
+                        document.getElementById('tp-val').innerText = '$' + a.tp;
+                        document.getElementById('sl-val').innerText = '$' + a.sl;
+                        document.getElementById('rr-val').innerText = a.rr_ratio;
+                        document.getElementById('pl-val').innerText = `${a.est_profit} / ${a.est_loss}`;
+                        document.getElementById('last-update').innerText = 'Täzelendi: ' + a.timestamp;
+                    }
+
+                    if (data.logs) {
+                        const logBox = document.getElementById('log-box');
+                        logBox.innerHTML = data.logs.join('<br>');
+                        logBox.scrollTop = logBox.scrollHeight;
+                    }
+                });
+
+            fetch('/api/history')
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.getElementById('history-table');
+                    if (data.trades && data.trades.length > 0) {
+                        tbody.innerHTML = data.trades.map(t => `
+                            <tr>
+                                <td>${t.symbol}</td>
+                                <td><span class="badge ${t.side === 'Buy' ? 'bg-success' : 'bg-danger'}">${t.side}</span></td>
+                                <td>$${t.entry_price}</td>
+                                <td>$${t.sl}</td>
+                                <td>$${t.tp}</td>
+                                <td>${t.qty}</td>
+                                <td><span class="badge bg-info">${t.status}</span></td>
+                                <td>${t.timestamp}</td>
+                            </tr>
+                        `).join('');
+                    }
+                });
+        }
+
+        function startBot() {
+            const payload = {
+                symbol: document.getElementById('symbol').value,
+                entry_tf: document.getElementById('entry_tf').value,
+                htf_tf: document.getElementById('htf_tf').value,
+                margin: document.getElementById('margin').value,
+                leverage: document.getElementById('leverage').value,
+                auto_trade: document.getElementById('auto_trade').checked
             };
 
-            await fetch("/api/start", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(data)
-            });
-
-            if (!intervalId) {
-                intervalId = setInterval(pollStatus, 3000); // 3 sekuntdan interfeýsi täzeleýär
-            }
+            fetch('/api/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).then(() => updateDashboard());
         }
 
-        async function stopBot() {
-            await fetch("/api/stop", { method: "POST" });
-            if (intervalId) {
-                clearInterval(intervalId);
-                intervalId = null;
-            }
-            pollStatus();
+        function stopBot() {
+            fetch('/api/stop', { method: 'POST' }).then(() => updateDashboard());
         }
 
-        async function pollStatus() {
-            const res = await fetch("/api/status");
-            const data = await res.json();
-
-            const badge = document.getElementById("status-badge");
-            if (data.is_running) {
-                badge.className = "text-xs bg-green-500/20 text-green-400 px-3 py-1 rounded-full font-bold animate-pulse";
-                badge.innerText = "ONLINE - ANALIZ GIDÝÄR...";
-            } else {
-                badge.className = "text-xs bg-red-500/20 text-red-400 px-3 py-1 rounded-full font-bold";
-                badge.innerText = "OFFLINE - STOP EDILDI";
-            }
-
-            if (data.analysis) {
-                const a = data.analysis;
-                let signalColor = a.signal === "BUY" ? "text-green-400" : (a.signal === "SELL" ? "text-red-400" : "text-gray-400");
-                
-                document.getElementById("last-update").innerText = "Täzelenen wagty: " + a.timestamp;
-                document.getElementById("analysis-output").innerHTML = `
-                    <div class="grid grid-cols-2 gap-4 bg-gray-900 p-4 rounded-lg">
-                        <div><span class="text-gray-500">Häzirki Baha:</span> <b class="text-white">${a.price}</b></div>
-                        <div><span class="text-gray-500">HTF Trend:</span> <b class="${a.htf_trend === 'BULLISH' ? 'text-green-400' : 'text-red-400'}">${a.htf_trend}</b></div>
-                        <div><span class="text-gray-500">FVG Görünüşi:</span> <b class="text-yellow-400">${a.fvg_type || 'Ýok'}</b></div>
-                        <div><span class="text-gray-500">Signal:</span> <b class="${signalColor} text-xl">${a.signal}</b></div>
-                    </div>
-                    
-                    <div class="bg-gray-900 p-4 rounded-lg space-y-1 text-sm">
-                        <div><b>OB ZONA:</b> ${a.ob_zone ? `${a.ob_zone[0]} - ${a.ob_zone[1]}` : 'Tapylmady'}</div>
-                        <div><b>FVG ZONA:</b> ${a.fvg_zone ? `${a.fvg_zone[0]} - ${a.fvg_zone[1]}` : 'Tapylmady'}</div>
-                    </div>
-                `;
-            }
-
-            const logsDiv = document.getElementById("logs-container");
-            logsDiv.innerHTML = data.logs.map(l => `<div>${l}</div>`).join("");
-
-            loadHistory();
-        }
-
-        async function loadHistory() {
-            const res = await fetch("/api/history");
-            const data = await res.json();
-            const table = document.getElementById("history-table");
-            table.innerHTML = "";
-
-            data.trades.forEach(t => {
-                table.innerHTML += `
-                    <tr class="border-b border-gray-800">
-                        <td class="p-3 font-bold">${t.symbol}</td>
-                        <td class="p-3 ${t.side === 'Buy' ? 'text-green-400' : 'text-red-400'}">${t.side}</td>
-                        <td class="p-3">${t.entry_price}</td>
-                        <td class="p-3 text-red-400">${t.sl}</td>
-                        <td class="p-3 text-green-400">${t.tp}</td>
-                        <td class="p-3">${t.qty}</td>
-                        <td class="p-3"><span class="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-xs">${t.status}</span></td>
-                        <td class="p-3 text-xs">${t.timestamp}</td>
-                    </tr>
-                `;
-            });
-        }
-
-        // Periodic Check on Load
-        pollStatus();
+        setInterval(updateDashboard, 3000);
+        updateDashboard();
     </script>
 </body>
 </html>
