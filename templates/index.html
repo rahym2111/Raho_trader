@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMC Trader - Doly Analiz</title>
+    <title>SMC Trader - Islendik Moneta</title>
     <style>
         :root {
             --bg: #0b1020;
@@ -243,6 +243,49 @@
         .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .error { color: var(--red); margin-top: 8px; font-size: 12px; min-height: 18px; }
 
+        /* Symbol Search */
+        .search-container {
+            position: relative;
+        }
+        .search-container input {
+            padding-right: 40px;
+        }
+        .search-container .clear-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            color: var(--muted);
+            padding: 0;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+        }
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+        }
+        .suggestions.active { display: block; }
+        .suggestions div {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+        }
+        .suggestions div:hover {
+            background: var(--card2);
+        }
+
         @media (max-width: 900px) {
             .grid { grid-template-columns: 1fr; }
             .two-col { grid-template-columns: 1fr; }
@@ -274,8 +317,15 @@
     <div>
         <div class="card">
             <h3>⚙️ Bot Sazlamalary</h3>
-            <label>Symbol</label>
-            <input id="symbol" value="BTCUSDT">
+            
+            <label>Symbol (Islendik moneta ýazyň)</label>
+            <div class="search-container">
+                <input id="symbol" value="PEPEUSDT" 
+                       placeholder="Mys: BTCUSDT, PEPEUSDT, DOGEUSDT"
+                       oninput="searchSymbol(this.value)">
+                <button class="clear-btn" onclick="clearSymbol()">✕</button>
+                <div id="suggestions" class="suggestions"></div>
+            </div>
 
             <label>Entry Timeframe</label>
             <select id="timeframe">
@@ -295,7 +345,7 @@
             </select>
 
             <label>Margin (USDT)</label>
-            <input id="amount" type="number" min="1" step="1" value="10">
+            <input id="amount" type="number" min="0.1" step="0.1" value="1">
 
             <label>Leverage</label>
             <input id="leverage" type="number" min="1" max="100" step="1" value="5">
@@ -354,7 +404,7 @@
             </div>
         </div>
 
-        <!-- === SMC INDICATORS === -->
+        <!-- SMC Indicators -->
         <div class="card">
             <h3>🔍 SMC Indicators</h3>
             <div class="indicator-grid">
@@ -373,7 +423,7 @@
             </div>
         </div>
 
-        <!-- REASONS -->
+        <!-- Reasons -->
         <div class="two-col">
             <div class="card">
                 <h3>🟢 BUY Reasons</h3>
@@ -385,7 +435,7 @@
             </div>
         </div>
 
-        <!-- STRUCTURE & RISK -->
+        <!-- Structure & Risk -->
         <div class="two-col">
             <div class="card">
                 <h3>📈 Structure</h3>
@@ -408,7 +458,7 @@
             </div>
         </div>
 
-        <!-- TRADE HISTORY -->
+        <!-- Trade History -->
         <div class="card" style="margin-top:12px;">
             <h3>📜 Trade History</h3>
             <div class="table-wrap">
@@ -431,6 +481,11 @@
 const $ = id => document.getElementById(id);
 let cachedState = {};
 let updateCount = 0;
+const commonSymbols = [
+    'BTCUSDT', 'ETHUSDT', 'PEPEUSDT', 'DOGEUSDT', 'SOLUSDT',
+    'XRPUSDT', 'ADAUSDT', 'DOTUSDT', 'LTCUSDT', 'AVAXUSDT',
+    'MATICUSDT', 'LINKUSDT', 'UNIUSDT', 'ATOMUSDT', 'ETCUSDT'
+];
 
 function fmtPrice(v) {
     if (v === null || v === undefined || Number.isNaN(Number(v))) return "—";
@@ -537,12 +592,43 @@ function updateTrades(trades) {
 function getState() { return cachedState; }
 
 // ============================================================
+// SYMBOL SEARCH
+// ============================================================
+function searchSymbol(value) {
+    const suggestions = $("suggestions");
+    if (!value || value.length < 1) {
+        suggestions.className = "suggestions";
+        return;
+    }
+    const matches = commonSymbols.filter(s => 
+        s.toLowerCase().includes(value.toLowerCase())
+    );
+    if (matches.length > 0) {
+        suggestions.className = "suggestions active";
+        suggestions.innerHTML = matches.map(s => 
+            `<div onclick="selectSymbol('${s}')">${s}</div>`
+        ).join('');
+    } else {
+        suggestions.className = "suggestions";
+    }
+}
+
+function selectSymbol(symbol) {
+    $("symbol").value = symbol;
+    $("suggestions").className = "suggestions";
+}
+
+function clearSymbol() {
+    $("symbol").value = "";
+    $("suggestions").className = "suggestions";
+}
+
+// ============================================================
 // UPDATE ANALYSIS
 // ============================================================
 function updateAnalysis(a) {
     if (!a) return;
 
-    // Price & Bias
     $("price").textContent = fmtPrice(a.price);
     $("rsi").textContent = a.rsi !== undefined ? Number(a.rsi).toFixed(1) : "—";
     $("ltf").textContent = a.ltf_bias || "—";
@@ -550,7 +636,6 @@ function updateAnalysis(a) {
     $("location").textContent = a.location || "—";
     $("atrValue").textContent = fmt(a.atr);
 
-    // Signal
     const signal = a.signal || "WAIT";
     $("signalText").textContent = signal;
     $("signalText").className = "signal-text " + signal;
@@ -558,21 +643,18 @@ function updateAnalysis(a) {
     $("sellScore").textContent = a.sell_score ?? 0;
     $("confidence").textContent = a.confidence ?? 0;
 
-    // Events (BOS/CHoCH)
     const events = a.events || [];
     setIndicator("bosUp", events.some(e => e.type === "BOS_UP"));
     setIndicator("bosDown", events.some(e => e.type === "BOS_DOWN"));
     setIndicator("chochUp", events.some(e => e.type === "CHOCH_UP"));
     setIndicator("chochDown", events.some(e => e.type === "CHOCH_DOWN"));
 
-    // Liquidity
     const liq = a.liquidity || {};
     setIndicator("buySweep", liq.buy_side_sweep);
     setIndicator("sellSweep", liq.sell_side_sweep);
     $("buyLevel").textContent = fmtPrice(liq.buy_side_level);
     $("sellLevel").textContent = fmtPrice(liq.sell_side_level);
 
-    // FVG
     setIndicator("bullFvg", a.bullish_fvg ? true : false);
     setIndicator("bearFvg", a.bearish_fvg ? true : false);
     if (a.bullish_fvg) {
@@ -584,7 +666,6 @@ function updateAnalysis(a) {
         $("bearFvg").className = "value true";
     }
 
-    // Order Blocks
     setIndicator("bullOb", a.bullish_ob ? true : false);
     setIndicator("bearOb", a.bearish_ob ? true : false);
     if (a.bullish_ob) {
@@ -596,15 +677,12 @@ function updateAnalysis(a) {
         $("bearOb").className = "value true";
     }
 
-    // Premium/Discount
     setIndicator("discount", a.location === "DISCOUNT");
     setIndicator("premium", a.location === "PREMIUM");
 
-    // Reasons
     setList("buyReasons", a.buy_reasons || [], "buy-reason");
     setList("sellReasons", a.sell_reasons || [], "sell-reason");
 
-    // Structure
     $("rangeHigh").textContent = fmtPrice(a.range_high);
     $("eq").textContent = fmtPrice(a.equilibrium);
     $("rangeLow").textContent = fmtPrice(a.range_low);
@@ -618,7 +696,6 @@ function updateAnalysis(a) {
         $("bosEvents").textContent = "None";
     }
 
-    // Risk
     $("entry").textContent = fmtPrice(a.price);
     $("sl").textContent = fmtPrice(a.sl);
     $("tp").textContent = fmtPrice(a.tp);
@@ -660,14 +737,21 @@ async function refresh() {
 // BOT CONTROLS
 // ============================================================
 async function startBot() {
+    const symbol = $("symbol").value.trim().toUpperCase();
+    if (!symbol) {
+        $("error").textContent = "❌ Symbol ýazyň!";
+        return;
+    }
+    
     const payload = {
-        symbol: $("symbol").value.trim(),
+        symbol: symbol,
         timeframe: $("timeframe").value,
         htf_timeframe: $("htf").value,
         amount: Number($("amount").value),
         leverage: Number($("leverage").value)
     };
 
+    $("error").textContent = "🔄 Bot işledilýär...";
     try {
         const res = await fetch("/api/start", {
             method: "POST",
@@ -675,7 +759,7 @@ async function startBot() {
             body: JSON.stringify(payload)
         });
         const data = await res.json();
-        $("error").textContent = data.message || "";
+        $("error").textContent = data.message || data.status || "";
         await refresh();
     } catch (e) {
         $("error").textContent = "Start error: " + e.message;
@@ -683,6 +767,7 @@ async function startBot() {
 }
 
 async function stopBot() {
+    $("error").textContent = "⏹ Bot saklanýar...";
     try {
         const res = await fetch("/api/stop", {method: "POST"});
         const data = await res.json();
@@ -694,13 +779,19 @@ async function stopBot() {
 }
 
 async function manualAnalyze() {
+    const symbol = $("symbol").value.trim().toUpperCase();
+    if (!symbol) {
+        $("error").textContent = "❌ Symbol ýazyň!";
+        return;
+    }
+    
     $("error").textContent = "🔍 Analiz edilýär...";
     try {
         const res = await fetch("/api/analyze", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({
-                symbol: $("symbol").value.trim(),
+                symbol: symbol,
                 timeframe: $("timeframe").value,
                 htf_timeframe: $("htf").value
             })
@@ -731,10 +822,17 @@ async function syncTime() {
 }
 
 // ============================================================
-// AUTO REFRESH - Her 2 sekuntdan
+// AUTO REFRESH
 // ============================================================
 refresh();
 setInterval(refresh, 2000);
+
+// Enter bilen start
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && document.activeElement === $("symbol")) {
+        startBot();
+    }
+});
 </script>
 </body>
 </html>

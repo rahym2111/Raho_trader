@@ -38,9 +38,9 @@ bot_thread = None
 
 bot_state = {
     "running": False,
-    "symbol": "BTCUSDT",
+    "symbol": "PEPEUSDT",
     "leverage": 5,
-    "amount": 10.0,
+    "amount": 1.0,
     "timeframe": "15",
     "htf_timeframe": "60",
     "analysis": None,
@@ -203,13 +203,14 @@ def get_wallet_balance():
         return None
 
 def get_klines(symbol, interval="15", limit=300):
+    """Islendik symbol üçin bahalary alýar"""
     data = public_request(
         "/v5/market/kline",
         {
             "category": "linear",
             "symbol": symbol.upper(),
             "interval": str(interval),
-            "limit": min(int(limit), 1000)
+            "limit": min(int(limit), 500)
         }
     )
     rows = data["result"]["list"]
@@ -231,6 +232,7 @@ def get_klines(symbol, interval="15", limit=300):
     return df
 
 def get_instrument_info(symbol):
+    """Islendik symbol üçin instrument maglumatlaryny alýar"""
     data = public_request(
         "/v5/market/instruments-info",
         {"category": "linear", "symbol": symbol.upper()}
@@ -242,6 +244,19 @@ def get_instrument_info(symbol):
         "minOrderQty": float(item["lotSizeFilter"]["minOrderQty"]),
         "maxOrderQty": float(item["lotSizeFilter"]["maxOrderQty"]),
     }
+
+def validate_symbol(symbol):
+    """Bybit-de symbol-yň barlygyny barlaýar"""
+    try:
+        data = public_request(
+            "/v5/market/instruments-info",
+            {"category": "linear", "symbol": symbol.upper()}
+        )
+        if data.get("result", {}).get("list", []):
+            return True
+        return False
+    except Exception:
+        return False
 
 def round_step(value, step):
     value_d = Decimal(str(value))
@@ -312,7 +327,7 @@ def find_swings(df, left=2, right=2):
         h = high_values[i]
         l = low_values[i]
         
-        # Swing high - surrounding bars lower
+        # Swing high
         is_high = True
         for j in range(i-left, i):
             if high_values[j] >= h:
@@ -326,7 +341,7 @@ def find_swings(df, left=2, right=2):
         if is_high:
             highs.append(i)
         
-        # Swing low - surrounding bars higher
+        # Swing low
         is_low = True
         for j in range(i-left, i):
             if low_values[j] <= l:
@@ -354,7 +369,6 @@ def structure_bias(df):
     l1 = float(df["low"].iloc[sl[-2]])
     l2 = float(df["low"].iloc[sl[-1]])
     
-    # Higher highs and higher lows = BULLISH
     if h2 > h1 and l2 > l1:
         return "BULLISH", {
             "last_swing_high": h2,
@@ -363,7 +377,6 @@ def structure_bias(df):
             "previous_swing_low": l1,
         }
     
-    # Lower highs and lower lows = BEARISH
     if h2 < h1 and l2 < l1:
         return "BEARISH", {
             "last_swing_high": h2,
@@ -392,7 +405,6 @@ def detect_bos_choch(df, lookback=120):
     last = work.iloc[-1]
     price = float(last["close"])
     
-    # Check BOS UP - price breaks above last swing high
     if len(sh) > 0:
         last_high_idx = sh[-1]
         level = float(work["high"].iloc[last_high_idx])
@@ -403,7 +415,6 @@ def detect_bos_choch(df, lookback=120):
                 "index": last_high_idx
             })
     
-    # Check BOS DOWN - price breaks below last swing low
     if len(sl) > 0:
         last_low_idx = sl[-1]
         level = float(work["low"].iloc[last_low_idx])
@@ -414,9 +425,7 @@ def detect_bos_choch(df, lookback=120):
                 "index": last_low_idx
             })
     
-    # CHoCH detection - opposite direction break
     if current_bias == "BEARISH":
-        # In bearish trend, break above last high = CHoCH UP
         for event in events:
             if event["type"] == "BOS_UP":
                 events.append({
@@ -425,7 +434,6 @@ def detect_bos_choch(df, lookback=120):
                     "index": event["index"]
                 })
     elif current_bias == "BULLISH":
-        # In bullish trend, break below last low = CHoCH DOWN
         for event in events:
             if event["type"] == "BOS_DOWN":
                 events.append({
@@ -442,7 +450,7 @@ def detect_fvg(df, lookback=50):
     start = max(3, len(df) - lookback)
     
     for i in range(start, len(df) - 1):
-        # Bullish FVG: low > high two candles ago
+        # Bullish FVG
         if df["low"].iloc[i] > df["high"].iloc[i - 2]:
             fvgs.append({
                 "type": "BULLISH",
@@ -452,7 +460,7 @@ def detect_fvg(df, lookback=50):
                 "timestamp": int(df["timestamp"].iloc[i])
             })
         
-        # Bearish FVG: high < low two candles ago
+        # Bearish FVG
         if df["high"].iloc[i] < df["low"].iloc[i - 2]:
             fvgs.append({
                 "type": "BEARISH",
@@ -477,16 +485,12 @@ def detect_order_blocks(df, lookback=80):
         if rng <= 0:
             continue
         
-        body = abs(df["close"].iloc[i] - df["open"].iloc[i])
-        body_pct = body / rng if rng > 0 else 0
-        
-        # Next 3 candles
         next3_high = df["high"].iloc[i+1:i+4].max()
         next3_low = df["low"].iloc[i+1:i+4].min()
         
-        # Bullish OB: Bearish candle followed by bullish displacement
-        if df["close"].iloc[i] < df["open"].iloc[i]:  # Bearish candle
-            if next3_high > df["high"].iloc[i] + rng * 0.6:  # Strong bullish displacement
+        # Bullish OB
+        if df["close"].iloc[i] < df["open"].iloc[i]:
+            if next3_high > df["high"].iloc[i] + rng * 0.6:
                 blocks.append({
                     "type": "BULLISH",
                     "low": float(df["low"].iloc[i]),
@@ -495,9 +499,9 @@ def detect_order_blocks(df, lookback=80):
                     "timestamp": int(df["timestamp"].iloc[i])
                 })
         
-        # Bearish OB: Bullish candle followed by bearish displacement
-        if df["close"].iloc[i] > df["open"].iloc[i]:  # Bullish candle
-            if next3_low < df["low"].iloc[i] - rng * 0.6:  # Strong bearish displacement
+        # Bearish OB
+        if df["close"].iloc[i] > df["open"].iloc[i]:
+            if next3_low < df["low"].iloc[i] - rng * 0.6:
                 blocks.append({
                     "type": "BEARISH",
                     "low": float(df["open"].iloc[i]),
@@ -528,10 +532,7 @@ def detect_liquidity_sweeps(df, lookback=15):
     current_low = float(last["low"])
     current_close = float(last["close"])
     
-    # Buy-side sweep: price moves above previous high then closes below
     buy_sweep = current_high > prev_high and current_close < prev_high
-    
-    # Sell-side sweep: price moves below previous low then closes above
     sell_sweep = current_low < prev_low and current_close > prev_low
     
     return {
@@ -575,20 +576,6 @@ def get_support_resistance(df, lookback=50):
     
     return support, resistance
 
-def get_nearest_zone(zones, price, zone_type):
-    """Find nearest zone of specific type"""
-    candidates = [z for z in zones if z["type"] == zone_type]
-    if not candidates:
-        return None
-    
-    # Find zone where price is inside or closest to
-    for z in candidates:
-        if z["low"] <= price <= z["high"]:
-            return z
-    
-    # If not inside, find closest
-    return min(candidates, key=lambda z: min(abs(z["low"] - price), abs(z["high"] - price)))
-
 def analyze_smc(df, htf_df=None):
     """Main SMC analysis - ähli alamatlar"""
     
@@ -604,21 +591,21 @@ def analyze_smc(df, htf_df=None):
     atr_value = float(last["atr"]) if pd.notna(last["atr"]) else 0.0
     rsi_value = float(last["rsi"]) if pd.notna(last["rsi"]) else 50.0
     
-    # === 1. STRUCTURE BIAS ===
+    # Structure
     ltf_bias, ltf_structure = structure_bias(x)
     
     htf_bias = "RANGE"
     if htf_df is not None and len(htf_df) >= 50:
         htf_bias, _ = structure_bias(htf_df)
     
-    # === 2. BOS/CHoCH ===
+    # BOS/CHoCH
     events = detect_bos_choch(x, lookback=120)
     bos_up = any(e["type"] == "BOS_UP" for e in events)
     bos_down = any(e["type"] == "BOS_DOWN" for e in events)
     choch_up = any(e["type"] == "CHOCH_UP" for e in events)
     choch_down = any(e["type"] == "CHOCH_DOWN" for e in events)
     
-    # === 3. FVG ===
+    # FVG
     fvgs = detect_fvg(x, lookback=50)
     bullish_fvg = None
     bearish_fvg = None
@@ -633,7 +620,7 @@ def analyze_smc(df, htf_df=None):
             bearish_fvg = fvg
             break
     
-    # === 4. ORDER BLOCKS ===
+    # Order Blocks
     obs = detect_order_blocks(x, lookback=80)
     bullish_ob = None
     bearish_ob = None
@@ -648,13 +635,13 @@ def analyze_smc(df, htf_df=None):
             bearish_ob = ob
             break
     
-    # === 5. LIQUIDITY SWEEPS ===
+    # Liquidity
     liquidity = detect_liquidity_sweeps(x, lookback=15)
     
-    # === 6. SUPPORT/RESISTANCE ===
+    # Support/Resistance
     support, resistance = get_support_resistance(x, lookback=50)
     
-    # === 7. PREMIUM/DISCOUNT ===
+    # Premium/Discount
     if ltf_structure:
         range_high = ltf_structure["last_swing_high"]
         range_low = ltf_structure["last_swing_low"]
@@ -665,116 +652,124 @@ def analyze_smc(df, htf_df=None):
     equilibrium = (range_high + range_low) / 2
     location = "DISCOUNT" if price < equilibrium else "PREMIUM"
     
-    # === 8. SCORING ===
+    # ============================================================
+    # SCORING - GÜÝJENDIRILEN
+    # ============================================================
     buy_score = 0
     sell_score = 0
     buy_reasons = []
     sell_reasons = []
     
-    # LTF Structure
+    # LTF Structure (3 bal)
     if ltf_bias == "BULLISH":
         buy_score += 3
-        buy_reasons.append("LTF structure bullish (+3)")
+        buy_reasons.append("✅ LTF structure bullish (+3)")
     elif ltf_bias == "BEARISH":
         sell_score += 3
-        sell_reasons.append("LTF structure bearish (+3)")
+        sell_reasons.append("✅ LTF structure bearish (+3)")
     
-    # HTF Structure
+    # HTF Structure (2 bal)
     if htf_bias == "BULLISH":
         buy_score += 2
-        buy_reasons.append("HTF structure bullish (+2)")
+        buy_reasons.append("✅ HTF structure bullish (+2)")
     elif htf_bias == "BEARISH":
         sell_score += 2
-        sell_reasons.append("HTF structure bearish (+2)")
+        sell_reasons.append("✅ HTF structure bearish (+2)")
     
-    # BOS/CHoCH
+    # BOS/CHoCH (2 bal)
     if bos_up:
         buy_score += 2
-        buy_reasons.append("BOS/CHoCH UP (+2)")
+        buy_reasons.append("✅ BOS/CHoCH UP (+2)")
     if bos_down:
         sell_score += 2
-        sell_reasons.append("BOS/CHoCH DOWN (+2)")
+        sell_reasons.append("✅ BOS/CHoCH DOWN (+2)")
     if choch_up:
         buy_score += 1
-        buy_reasons.append("CHoCH UP (+1)")
+        buy_reasons.append("✅ CHoCH UP (+1)")
     if choch_down:
         sell_score += 1
-        sell_reasons.append("CHoCH DOWN (+1)")
+        sell_reasons.append("✅ CHoCH DOWN (+1)")
     
-    # Liquidity Sweeps
+    # Liquidity Sweeps (2 bal)
     if liquidity["sell_side_sweep"]:
         buy_score += 2
-        buy_reasons.append("Sell-side liquidity swept (+2)")
+        buy_reasons.append("✅ Sell-side liquidity swept (+2)")
     if liquidity["buy_side_sweep"]:
         sell_score += 2
-        sell_reasons.append("Buy-side liquidity swept (+2)")
+        sell_reasons.append("✅ Buy-side liquidity swept (+2)")
     
-    # FVG
+    # FVG (1 bal)
     if bullish_fvg:
         buy_score += 1
-        buy_reasons.append(f"Bullish FVG ({bullish_fvg['low']:.5f}-{bullish_fvg['high']:.5f}) (+1)")
+        buy_reasons.append(f"✅ Bullish FVG (+1)")
     if bearish_fvg:
         sell_score += 1
-        sell_reasons.append(f"Bearish FVG ({bearish_fvg['low']:.5f}-{bearish_fvg['high']:.5f}) (+1)")
+        sell_reasons.append(f"✅ Bearish FVG (+1)")
     
-    # Order Blocks
+    # Order Blocks (1 bal)
     if bullish_ob:
         buy_score += 1
-        buy_reasons.append(f"Bullish OB ({bullish_ob['low']:.5f}-{bullish_ob['high']:.5f}) (+1)")
+        buy_reasons.append(f"✅ Bullish OB (+1)")
     if bearish_ob:
         sell_score += 1
-        sell_reasons.append(f"Bearish OB ({bearish_ob['low']:.5f}-{bearish_ob['high']:.5f}) (+1)")
+        sell_reasons.append(f"✅ Bearish OB (+1)")
     
-    # Premium/Discount
+    # Premium/Discount (1 bal)
     if location == "DISCOUNT":
         buy_score += 1
-        buy_reasons.append("Discount area (+1)")
+        buy_reasons.append("✅ Discount area (+1)")
     else:
         sell_score += 1
-        sell_reasons.append("Premium area (+1)")
+        sell_reasons.append("✅ Premium area (+1)")
     
-    # Support/Resistance
+    # Support/Resistance (1 bal)
     if support and price <= support * 1.005:
         buy_score += 1
-        buy_reasons.append(f"Near support {support:.5f} (+1)")
+        buy_reasons.append(f"✅ Near support (+1)")
     if resistance and price >= resistance * 0.995:
         sell_score += 1
-        sell_reasons.append(f"Near resistance {resistance:.5f} (+1)")
+        sell_reasons.append(f"✅ Near resistance (+1)")
     
-    # RSI
+    # RSI (1 bal)
     if rsi_value < 30:
         buy_score += 1
-        buy_reasons.append(f"RSI oversold ({rsi_value:.1f}) (+1)")
+        buy_reasons.append(f"✅ RSI oversold ({rsi_value:.1f}) (+1)")
     elif rsi_value > 70:
         sell_score += 1
-        sell_reasons.append(f"RSI overbought ({rsi_value:.1f}) (+1)")
+        sell_reasons.append(f"✅ RSI overbought ({rsi_value:.1f}) (+1)")
     
-    # === 9. SIGNAL ===
+    # ============================================================
+    # SIGNAL - 4-den başlaýar
+    # ============================================================
     signal = "WAIT"
     sl = None
     tp = None
     rr = None
     
-    if buy_score >= 6 and buy_score >= sell_score + 2:
+    if buy_score >= 4 and buy_score >= sell_score + 1:
         signal = "BUY"
-        # Calculate SL/TP
         if atr_value > 0:
-            sl = price - atr_value * 1.2
+            sl = price - atr_value * 1.0
             if support and sl < support:
-                sl = support - atr_value * 0.1
-            tp = price + (price - sl) * 2.5
-            rr = 2.5
+                sl = support - atr_value * 0.05
+            tp = price + (price - sl) * 2.0
+            rr = 2.0
     
-    elif sell_score >= 6 and sell_score >= buy_score + 2:
+    elif sell_score >= 4 and sell_score >= buy_score + 1:
         signal = "SELL"
         if atr_value > 0:
-            sl = price + atr_value * 1.2
+            sl = price + atr_value * 1.0
             if resistance and sl > resistance:
-                sl = resistance + atr_value * 0.1
-            tp = price - (sl - price) * 2.5
-            rr = 2.5
+                sl = resistance + atr_value * 0.05
+            tp = price - (sl - price) * 2.0
+            rr = 2.0
     
-    # === 10. RETURN ===
+    # Weak signal
+    elif buy_score >= 3 and buy_score > sell_score:
+        signal = "BUY_WEAK"
+    elif sell_score >= 3 and sell_score > buy_score:
+        signal = "SELL_WEAK"
+    
     return {
         "symbol": bot_state["symbol"],
         "timeframe": bot_state["timeframe"],
@@ -816,6 +811,12 @@ def run_analysis():
     symbol = bot_state["symbol"]
     tf = bot_state["timeframe"]
     htf = bot_state["htf_timeframe"]
+    
+    # Symbol-y barla
+    if not validate_symbol(symbol):
+        bot_state["last_error"] = f"Symbol {symbol} nädogry!"
+        log_terminal(f"[ERROR] Symbol {symbol} nädogry!")
+        return None
     
     ltf_df = get_klines(symbol, tf, 300)
     htf_df = get_klines(symbol, htf, 200)
@@ -865,39 +866,41 @@ def bot_worker():
             
             analysis = run_analysis()
             
-            log_terminal(
-                f"[SMC] {analysis['symbol']} {analysis['timeframe']} | "
-                f"LTF={analysis['ltf_bias']} HTF={analysis['htf_bias']} | "
-                f"BUY={analysis['buy_score']} SELL={analysis['sell_score']} | "
-                f"signal={analysis['signal']}"
-            )
-            
-            # Trade execution
-            if analysis["signal"] in ("BUY", "SELL"):
-                if len(get_open_positions(bot_state["symbol"])) == 0:
-                    try:
-                        # Execute trade
-                        log_terminal(f"[TRADE] {analysis['signal']} at {analysis['price']}")
-                        save_trade({
-                            "symbol": bot_state["symbol"],
-                            "side": analysis["signal"],
-                            "entry_price": analysis["price"],
-                            "sl": analysis["sl"],
-                            "tp": analysis["tp"],
-                            "signal_score": analysis["confidence"],
-                            "reason": "; ".join(analysis["buy_reasons"] if analysis["signal"] == "BUY" else analysis["sell_reasons"])
-                        })
-                    except Exception as e:
-                        log_terminal(f"[ERROR] Trade execution: {e}")
+            if analysis:
+                log_terminal(
+                    f"[SMC] {analysis['symbol']} {analysis['timeframe']} | "
+                    f"LTF={analysis['ltf_bias']} HTF={analysis['htf_bias']} | "
+                    f"BUY={analysis['buy_score']} SELL={analysis['sell_score']} | "
+                    f"signal={analysis['signal']}"
+                )
+                
+                # Trade execution
+                if analysis["signal"] in ("BUY", "SELL"):
+                    positions = get_open_positions(bot_state["symbol"])
+                    if len(positions) == 0:
+                        log_terminal(f"🚨 {analysis['signal']} SIGNAL DETECTED!")
+                        try:
+                            save_trade({
+                                "symbol": bot_state["symbol"],
+                                "side": analysis["signal"],
+                                "entry_price": analysis["price"],
+                                "sl": analysis["sl"],
+                                "tp": analysis["tp"],
+                                "signal_score": analysis["confidence"],
+                                "reason": "; ".join(analysis["buy_reasons"] if analysis["signal"] == "BUY" else analysis["sell_reasons"])
+                            })
+                            log_terminal(f"✅ Trade saved: {analysis['signal']} at {analysis['price']}")
+                        except Exception as e:
+                            log_terminal(f"[ERROR] Trade save: {e}")
             
         except Exception as exc:
             bot_state["last_error"] = str(exc)
             log_terminal(f"[BOT ERROR] {exc}")
         
-        for _ in range(5):
+        for _ in range(2):
             if not bot_state["running"]:
                 break
-            time.sleep(2)
+            time.sleep(1)
     
     bot_state["running"] = False
     log_terminal("[SYSTEM] SMC bot saklandy.")
@@ -916,15 +919,22 @@ def start_bot():
     
     data = request.get_json(silent=True) or {}
     
-    symbol = str(data.get("symbol", "BTCUSDT")).upper().strip()
+    symbol = str(data.get("symbol", "PEPEUSDT")).upper().strip()
     timeframe = str(data.get("timeframe", "15"))
     htf_timeframe = str(data.get("htf_timeframe", "60"))
     
     try:
         leverage = int(data.get("leverage", 5))
-        amount = float(data.get("amount", 10))
+        amount = float(data.get("amount", 1.0))
     except (TypeError, ValueError):
         return jsonify({"status": "error", "message": "Leverage we amount san bolmaly."}), 400
+    
+    # Symbol-y barla
+    if not validate_symbol(symbol):
+        return jsonify({
+            "status": "error",
+            "message": f"❌ Symbol {symbol} Bybit-de ýok! BTCUSDT, PEPEUSDT, DOGEUSDT ýaly dogry symbol saýlaň."
+        }), 400
     
     with bot_lock:
         bot_state["symbol"] = symbol
@@ -941,7 +951,7 @@ def start_bot():
         bot_thread = threading.Thread(target=bot_worker, daemon=True)
         bot_thread.start()
     
-    return jsonify({"status": "success", "message": "SMC bot başlady."})
+    return jsonify({"status": "success", "message": f"✅ SMC bot {symbol} üçin başlady."})
 
 @app.route("/api/stop", methods=["POST"])
 def stop_bot():
@@ -954,14 +964,20 @@ def manual_analyze():
     try:
         data = request.get_json(silent=True) or {}
         if data.get("symbol"):
-            bot_state["symbol"] = str(data["symbol"]).upper().strip()
+            symbol = str(data["symbol"]).upper().strip()
+            if not validate_symbol(symbol):
+                return jsonify({"status": "error", "message": f"Symbol {symbol} nädogry!"}), 400
+            bot_state["symbol"] = symbol
         if data.get("timeframe"):
             bot_state["timeframe"] = str(data["timeframe"])
         if data.get("htf_timeframe"):
             bot_state["htf_timeframe"] = str(data["htf_timeframe"])
         
         analysis = run_analysis()
-        return jsonify({"status": "success", "analysis": analysis})
+        if analysis:
+            return jsonify({"status": "success", "analysis": analysis})
+        else:
+            return jsonify({"status": "error", "message": "Analiz başarısız"}), 500
     except Exception as exc:
         bot_state["last_error"] = str(exc)
         return jsonify({"status": "error", "message": str(exc)}), 500
@@ -1009,7 +1025,8 @@ def health():
         "status": "ok",
         "api_configured": bool(BYBIT_API_KEY and BYBIT_API_SECRET),
         "mode": "LIVE" if "testnet" not in BYBIT_URL.lower() else "TESTNET",
-        "running": bot_state.get("running", False)
+        "running": bot_state.get("running", False),
+        "symbol": bot_state.get("symbol", "—")
     })
 
 if __name__ == "__main__":
