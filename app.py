@@ -20,7 +20,6 @@ API_SECRET = os.getenv("BYBIT_API_SECRET", "")
 BASE_URL = os.getenv("BYBIT_URL", "https://api.bybit.com")
 DB_NAME = os.getenv("DB_NAME", "trades.db")
 
-# Global Bot Ýagdaýy
 bot_state = {
     "is_running": False,
     "symbol": "DOGEUSDT",
@@ -100,7 +99,6 @@ def pybit_request(endpoint, method="GET", params=None):
         return {"retCode": -1, "retMsg": str(e)}
 
 def get_symbol_info(symbol):
-    """Bybit-den simwolyň minimal lot we tegeleklemek takyklygyny alýar"""
     res = pybit_request("/v5/market/instruments-info", "GET", {
         "category": "linear",
         "symbol": symbol.upper()
@@ -109,13 +107,13 @@ def get_symbol_info(symbol):
         info = res["result"]["list"][0]
         qty_step = float(info["lotSizeFilter"]["qtyStep"])
         min_qty = float(info["lotSizeFilter"]["minOrderQty"])
+        price_tick = float(info["priceFilter"]["tickSize"])
         
-        precision = 0
-        if "." in str(qty_step):
-            precision = len(str(qty_step).split(".")[1].rstrip("0"))
+        qty_precision = len(str(qty_step).split(".")[1].rstrip("0")) if "." in str(qty_step) else 0
+        price_precision = len(str(price_tick).split(".")[1].rstrip("0")) if "." in str(price_tick) else 2
             
-        return qty_step, min_qty, precision
-    return 1.0, 10.0, 0
+        return qty_step, min_qty, qty_precision, price_precision
+    return 1.0, 10.0, 0, 4
 
 def fetch_klines(symbol, interval, limit=100):
     tf_map = {"5m": "5", "15m": "15", "30m": "30", "1H": "60", "4H": "240", "1D": "D"}
@@ -137,74 +135,87 @@ def fetch_klines(symbol, interval, limit=100):
         return df
     return None
 
-def smc_analysis(df_entry, df_htf, margin, leverage):
-    # HTF Treind
+def advanced_smc_analysis(df_entry, df_htf, margin, leverage, price_prec):
+    curr_price = df_entry['close'].iloc[-1]
+    
+    # 1. HTF Trend - EMA 50/200 Cross & Structure
+    df_htf['ema50'] = df_htf['close'].ewm(span=50, adjust=False).mean()
     df_htf['ema200'] = df_htf['close'].ewm(span=200, adjust=False).mean()
-    htf_ema = round(df_htf['ema200'].iloc[-1], 4)
-    curr_price = round(df_entry['close'].iloc[-1], 4)
-    htf_trend = "BULLISH" if curr_price > htf_ema else "BEARISH"
+    
+    htf_ema50 = df_htf['ema50'].iloc[-1]
+    htf_ema200 = df_htf['ema200'].iloc[-1]
+    
+    if curr_price > htf_ema200 and htf_ema50 > htf_ema200:
+        htf_trend = "BULLISH"
+    elif curr_price < htf_ema200 and htf_ema50 < htf_ema200:
+        htf_trend = "BEARISH"
+    else:
+        htf_trend = "SIDEWAYS / NEUTRAL"
 
-    # Fair Value Gap (FVG)
+    # 2. Fair Value Gap (FVG) Barlagy
     fvg_type = "ÝOK"
-    fvg_zone = None
-
-    for i in range(len(df_entry) - 2, max(0, len(df_entry) - 15), -1):
+    fvg_zone = [0, 0]
+    
+    for i in range(len(df_entry) - 2, max(2, len(df_entry) - 12), -1):
+        # Bullish FVG
         if df_entry['low'].iloc[i] > df_entry['high'].iloc[i-2]:
             fvg_type = "BULLISH"
-            fvg_zone = [round(df_entry['high'].iloc[i-2], 4), round(df_entry['low'].iloc[i], 4)]
+            fvg_zone = [round(df_entry['high'].iloc[i-2], price_prec), round(df_entry['low'].iloc[i], price_prec)]
             break
+        # Bearish FVG
         elif df_entry['high'].iloc[i] < df_entry['low'].iloc[i-2]:
             fvg_type = "BEARISH"
-            fvg_zone = [round(df_entry['high'].iloc[i], 4), round(df_entry['low'].iloc[i-2], 4)]
+            fvg_zone = [round(df_entry['high'].iloc[i], price_prec), round(df_entry['low'].iloc[i-2], price_prec)]
             break
 
-    # Order Block (OB)
-    ob_zone = None
-    if fvg_type == "BULLISH":
-        ob_candle = df_entry.iloc[-8:-2][df_entry['close'] < df_entry['open']].tail(1)
-        if not ob_candle.empty:
-            ob_zone = [round(ob_candle['low'].values[0], 4), round(ob_candle['high'].values[0], 4)]
-    elif fvg_type == "BEARISH":
-        ob_candle = df_entry.iloc[-8:-2][df_entry['close'] > df_entry['open']].tail(1)
-        if not ob_candle.empty:
-            ob_zone = [round(ob_candle['low'].values[0], 4), round(ob_candle['high'].values[0], 4)]
+    # 3. Market Structure High & Lows (SL/TP kesgitlemek üçin)
+    recent_low = df_entry['low'].iloc[-15:].min()
+    recent_high = df_entry['high'].iloc[-15:].max()
 
-    # Signal Logic
+    # 4. Signal & Precision SL/TP Logic
     signal = "NEUTRAL"
+    sl_price = 0.0
+    tp_price = 0.0
+    
     if htf_trend == "BULLISH" and fvg_type == "BULLISH":
         signal = "BUY"
+        # SL structure low-dan salgylanyp az-kem aralyk goýulýar
+        sl_price = round(recent_low * 0.998, price_prec)
+        risk = curr_price - sl_price
+        # Minimum 1:2 Risk/Reward
+        tp_price = round(curr_price + (risk * 2.2), price_prec)
+
     elif htf_trend == "BEARISH" and fvg_type == "BEARISH":
         signal = "SELL"
+        # SL structure high-dan salgylanyp goýulýar
+        sl_price = round(recent_high * 1.002, price_prec)
+        risk = sl_price - curr_price
+        tp_price = round(curr_price - (risk * 2.2), price_prec)
 
-    # Target Price & Risk / Reward Calculation
-    sl_dist = 0.015  # 1.5% SL
-    tp_dist = 0.035  # 3.5% TP
+    # Risk-Reward Calculators
+    rr_ratio = "1:2.2" if signal != "NEUTRAL" else "0"
+    pos_size = (margin * leverage) / curr_price if curr_price > 0 else 0
     
-    sl_price = round(curr_price * (1 - sl_dist) if signal == "BUY" else curr_price * (1 + sl_dist), 4)
-    tp_price = round(curr_price * (1 + tp_dist) if signal == "BUY" else curr_price * (1 - tp_dist), 4)
-
-    est_position_vol = margin * leverage
-    potential_profit = round(est_position_vol * tp_dist, 2)
-    potential_loss = round(est_position_vol * sl_dist, 2)
+    p_profit = abs(tp_price - curr_price) * pos_size if signal != "NEUTRAL" else 0
+    p_loss = abs(curr_price - sl_price) * pos_size if signal != "NEUTRAL" else 0
 
     return {
         "signal": signal,
         "htf_trend": htf_trend,
-        "htf_ema": htf_ema,
+        "curr_price": round(curr_price, price_prec),
         "fvg_type": fvg_type,
-        "fvg_zone": fvg_zone if fvg_zone else ["N/A", "N/A"],
-        "ob_zone": ob_zone if ob_zone else ["N/A", "N/A"],
-        "price": curr_price,
+        "fvg_zone": fvg_zone,
+        "recent_high": round(recent_high, price_prec),
+        "recent_low": round(recent_low, price_prec),
         "sl": sl_price,
         "tp": tp_price,
-        "rr_ratio": "1:2.33",
-        "est_profit": f"+${potential_profit}",
-        "est_loss": f"-${potential_loss}",
+        "rr_ratio": rr_ratio,
+        "est_profit": f"+${round(p_profit, 2)}",
+        "est_loss": f"-${round(p_loss, 2)}",
         "timestamp": time.strftime("%H:%M:%S")
     }
 
-def execute_trade(symbol, side, margin, leverage, price):
-    # Set Leverage
+def execute_trade(symbol, side, margin, leverage, price, sl, tp):
     pybit_request("/v5/position/set-leverage", "POST", {
         "category": "linear",
         "symbol": symbol,
@@ -212,20 +223,12 @@ def execute_trade(symbol, side, margin, leverage, price):
         "sellLeverage": str(leverage)
     })
     
-    qty_step, min_qty, precision = get_symbol_info(symbol)
-    
+    qty_step, min_qty, qty_prec, price_prec = get_symbol_info(symbol)
     raw_qty = (margin * leverage) / price
     
-    if precision > 0:
-        qty = round(raw_qty - (raw_qty % qty_step), precision)
-    else:
-        qty = int(raw_qty - (raw_qty % qty_step))
-    
+    qty = round(raw_qty - (raw_qty % qty_step), qty_prec) if qty_prec > 0 else int(raw_qty)
     if qty < min_qty:
         qty = min_qty
-
-    sl = round(price * 0.985 if side == "Buy" else price * 1.015, 4)
-    tp = round(price * 1.035 if side == "Buy" else price * 0.965, 4)
 
     order_payload = {
         "category": "linear",
@@ -249,9 +252,9 @@ def execute_trade(symbol, side, margin, leverage, price):
         ''', (symbol, side, price, sl, tp, qty, "OPEN"))
         conn.commit()
         conn.close()
-        return True, f"Sdelka açyldy! Qty: {qty}"
+        return True, f"Sdelka Açyldy! Qty: {qty} | SL: {sl} | TP: {tp}"
     
-    return False, f"Bybit Ýalňyşlygy: {res.get('retMsg')} (Code: {res.get('retCode')})"
+    return False, f"Bybit Error: {res.get('retMsg')} (Code: {res.get('retCode')})"
 
 def bot_loop():
     last_trade_signal = None
@@ -262,33 +265,34 @@ def bot_loop():
                 entry_tf = bot_state["entry_tf"]
                 htf_tf = bot_state["htf_tf"]
 
+                _, _, _, price_prec = get_symbol_info(symbol)
+
                 df_entry = fetch_klines(symbol, entry_tf)
                 df_htf = fetch_klines(symbol, htf_tf)
 
                 if df_entry is not None and df_htf is not None:
-                    res = smc_analysis(df_entry, df_htf, bot_state["margin"], bot_state["leverage"])
+                    res = advanced_smc_analysis(df_entry, df_htf, bot_state["margin"], bot_state["leverage"], price_prec)
                     bot_state["last_analysis"] = res
 
-                    log_event(f"[{symbol}] Baha: {res['price']} | Trend: {res['htf_trend']} | Signal: {res['signal']}")
+                    log_event(f"[{symbol}] Baha: {res['curr_price']} | Trend: {res['htf_trend']} | Signal: {res['signal']}")
 
-                    # Auto Trade trigger
                     if bot_state["auto_trade"] and res["signal"] in ["BUY", "SELL"]:
                         if last_trade_signal != res["signal"]:
                             side = "Buy" if res["signal"] == "BUY" else "Sell"
                             success, msg = execute_trade(
-                                symbol, side, bot_state["margin"], bot_state["leverage"], res["price"]
+                                symbol, side, bot_state["margin"], bot_state["leverage"],
+                                res["curr_price"], res["sl"], res["tp"]
                             )
-                            log_event(f"AUTO-TRADE: {msg}")
+                            log_event(f"EXECUTION: {msg}")
                             if success:
                                 last_trade_signal = res["signal"]
             except Exception as e:
                 log_event(f"Error Loop: {str(e)}")
 
-        time.sleep(10)
+        time.sleep(8)
 
 threading.Thread(target=bot_loop, daemon=True).start()
 
-# API Routes
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -303,25 +307,19 @@ def start_bot():
     bot_state["leverage"] = int(data.get("leverage", 10))
     bot_state["auto_trade"] = bool(data.get("auto_trade", False))
     bot_state["is_running"] = True
-    log_event(f"Bot Başlatyldy: {bot_state['symbol']} ({bot_state['entry_tf']}/{bot_state['htf_tf']}) AutoTrade: {bot_state['auto_trade']}")
-    return jsonify({"status": "started", "message": "Bot üstünlikli işledildi!"})
+    log_event(f"Bot Başlatyldy: {bot_state['symbol']}")
+    return jsonify({"status": "started"})
 
 @app.route("/api/stop", methods=["POST"])
 def stop_bot():
     bot_state["is_running"] = False
     log_event("Bot Togtadyldy!")
-    return jsonify({"status": "stopped", "message": "Bot togtadyldy!"})
+    return jsonify({"status": "stopped"})
 
 @app.route("/api/status", methods=["GET"])
 def get_status():
     return jsonify({
         "is_running": bot_state["is_running"],
-        "config": {
-            "symbol": bot_state["symbol"],
-            "margin": bot_state["margin"],
-            "leverage": bot_state["leverage"],
-            "auto_trade": bot_state["auto_trade"]
-        },
         "analysis": bot_state["last_analysis"],
         "logs": bot_state["logs"][-15:]
     })
@@ -344,4 +342,4 @@ def history():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port)
