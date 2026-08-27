@@ -3,46 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMC Precision Professional Terminal</title>
+    <title>Bybit SMC Institutional Precision Terminal</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #0d1117; color: #c9d1d9; font-family: 'Inter', sans-serif; }
-        .card { background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; }
-        .card-header { background-color: #21262d; border-bottom: 1px solid #30363d; font-weight: 600; color: #f0f6fc; }
-        .val-large { font-size: 1.4rem; font-weight: bold; }
+        body { background-color: #0b0e14; color: #e6edf3; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        .card { background-color: #161b22; border: 1px solid #30363d; border-radius: 10px; }
+        .card-header { background-color: #21262d; border-bottom: 1px solid #30363d; font-weight: 700; color: #f0f6fc; }
+        .val-large { font-size: 1.6rem; font-weight: 800; }
         .text-buy { color: #3fb950 !important; }
         .text-sell { color: #f85149 !important; }
-        .bg-buy { background-color: #238636 !important; color: white; }
-        .bg-sell { background-color: #da3633 !important; color: white; }
-        #log-box { background-color: #0d1117; height: 200px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.85rem; padding: 10px; border-radius: 6px; color: #58a6ff; border: 1px solid #30363d; }
-        .reason-list { background-color: #0d1117; padding: 10px 15px; border-radius: 6px; border: 1px solid #30363d; }
+        .bg-buy { background-color: #238636 !important; color: #ffffff; }
+        .bg-sell { background-color: #da3633 !important; color: #ffffff; }
+        .badge-true { background-color: #238636; color: white; padding: 4px 10px; border-radius: 4px; font-weight: bold; }
+        .badge-false { background-color: #30363d; color: #8b949e; padding: 4px 10px; border-radius: 4px; font-weight: bold; }
+        #log-box { background-color: #05070a; height: 180px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 0.85rem; padding: 10px; border-radius: 6px; color: #58a6ff; border: 1px solid #30363d; }
+        .table-custom { color: #e6edf3; font-size: 0.9rem; }
+        .table-custom td { padding: 8px 12px; }
     </style>
 </head>
 <body class="py-4">
-    <div class="container">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h3 class="fw-bold text-white"><span class="text-warning">⚡ Bybit SMC</span> Trading Terminal</h3>
-            <div>Status: <span id="bot-status" class="badge bg-danger fs-6">OFFLINE</span></div>
+    <div class="container-fluid px-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="fw-bold text-white m-0"><span class="text-warning">⚡ BYBIT SMC</span> Institutional Bot</h3>
+            <div>System Status: <span id="bot-status" class="badge bg-danger fs-6">OFFLINE</span></div>
         </div>
 
         <div class="row g-3">
-            <div class="col-md-4">
-                <div class="card p-3">
-                    <h5 class="card-header rounded mb-3">⚙️ Trading Control</h5>
+            <!-- Terminal Controls -->
+            <div class="col-lg-3">
+                <div class="card p-3 h-100">
+                    <h5 class="card-header rounded mb-3">⚙️ Strategy Settings</h5>
                     <div class="mb-2">
-                        <label class="form-label text-muted">Symbol</label>
-                        <input type="text" id="symbol" class="form-control bg-dark text-white border-secondary" value="DOGEUSDT">
+                        <label class="form-label text-secondary fw-bold">Pair Symbol</label>
+                        <input type="text" id="symbol" class="form-control bg-dark text-white border-secondary fw-bold" value="DOGEUSDT">
                     </div>
                     <div class="row mb-2">
                         <div class="col">
-                            <label class="form-label text-muted">Entry TF</label>
+                            <label class="form-label text-secondary fw-bold">Entry TF</label>
                             <select id="entry_tf" class="form-select bg-dark text-white border-secondary">
                                 <option value="5m">5m</option>
                                 <option value="15m" selected>15m</option>
                             </select>
                         </div>
                         <div class="col">
-                            <label class="form-label text-muted">HTF TF</label>
+                            <label class="form-label text-secondary fw-bold">HTF Trend</label>
                             <select id="htf_tf" class="form-select bg-dark text-white border-secondary">
                                 <option value="1H" selected>1H</option>
                                 <option value="4H">4H</option>
@@ -51,92 +55,110 @@
                     </div>
                     <div class="row mb-3">
                         <div class="col">
-                            <label class="form-label text-muted">Margin ($)</label>
+                            <label class="form-label text-secondary fw-bold">Margin ($)</label>
                             <input type="number" id="margin" class="form-control bg-dark text-white border-secondary" value="10">
                         </div>
                         <div class="col">
-                            <label class="form-label text-muted">Leverage</label>
+                            <label class="form-label text-secondary fw-bold">Leverage</label>
                             <input type="number" id="leverage" class="form-control bg-dark text-white border-secondary" value="10">
                         </div>
                     </div>
                     <div class="form-check form-switch mb-3">
                         <input class="form-check-input" type="checkbox" id="auto_trade">
-                        <label class="form-check-label text-warning fw-bold" for="auto_trade">Awtomatiki Sdelka Aç</label>
+                        <label class="form-check-label text-warning fw-bold" for="auto_trade">Auto Trade Mode</label>
                     </div>
-                    <button onclick="startBot()" id="btn-start" class="btn btn-success fw-bold w-100 mb-2">▶ Analizi Başlat</button>
-                    <button onclick="stopBot()" id="btn-stop" class="btn btn-danger fw-bold w-100" disabled>⏹ Stop</button>
+                    <button onclick="startBot()" id="btn-start" class="btn btn-success fw-bold w-100 mb-2 py-2">▶ Start Bot</button>
+                    <button onclick="stopBot()" id="btn-stop" class="btn btn-danger fw-bold w-100 py-2" disabled>⏹ Stop Bot</button>
                 </div>
             </div>
 
-            <div class="col-md-8">
+            <!-- SMC Dynamic Matrix -->
+            <div class="col-lg-9">
                 <div class="card p-3">
                     <div class="d-flex justify-content-between align-items-center mb-3 border-bottom border-secondary pb-2">
-                        <h5 class="m-0 text-white">📊 Takyk Analiz Görkezijisi</h5>
-                        <small id="update-time" class="text-muted">---</small>
+                        <h5 class="m-0 text-white">📊 Smart Money Concepts (SMC) Matrix</h5>
+                        <small id="update-time" class="text-secondary font-monospace">Updating...</small>
                     </div>
-                    
-                    <div class="row text-center mb-3">
-                        <div class="col-4">
-                            <small class="text-muted d-block">Signal</small>
+
+                    <div class="row text-center mb-3 bg-dark py-2 rounded border border-secondary mx-0">
+                        <div class="col-4 border-end border-secondary">
+                            <small class="text-secondary fw-bold d-block">SMC SIGNAL</small>
                             <div id="sig-val" class="val-large text-secondary">NEUTRAL</div>
                         </div>
-                        <div class="col-4">
-                            <small class="text-muted d-block">Bybit Baha</small>
-                            <div id="price-val" class="val-large text-warning">0.00000</div>
+                        <div class="col-4 border-end border-secondary">
+                            <small class="text-secondary fw-bold d-block">BYBIT LIVE PRICE</small>
+                            <div id="price-val" class="val-large text-warning font-monospace">0.00000</div>
                         </div>
                         <div class="col-4">
-                            <small class="text-muted d-block">HTF Trend</small>
-                            <div id="trend-val" class="val-large text-info">-</div>
+                            <small class="text-secondary fw-bold d-block">RISK / REWARD</small>
+                            <div class="val-large text-info font-monospace">1 : 3.0</div>
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="fw-bold text-white mb-1">💡 Analiziň Sebäbi we Düşündirişi:</label>
-                        <div id="reasons-box" class="reason-list text-secondary">
-                            Analiz maglumatlary beklenýär...
+                    <!-- True / False Check Table -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <div class="p-2 border border-secondary rounded bg-dark">
+                                <h6 class="text-buy fw-bold text-center mb-2">🟢 Bullish SMC Criteria</h6>
+                                <table class="table table-dark table-sm table-custom mb-0">
+                                    <tbody id="bull-checks"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-2 border border-secondary rounded bg-dark">
+                                <h6 class="text-sell fw-bold text-center mb-2">🔴 Bearish SMC Criteria</h6>
+                                <table class="table table-dark table-sm table-custom mb-0">
+                                    <tbody id="bear-checks"></tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="row border-top border-secondary pt-2">
-                        <div class="col-6">
-                            <p class="mb-1"><b>FVG Zone:</b> <span id="fvg-zone" class="text-info">0.00000 - 0.00000</span></p>
-                            <p class="mb-1"><b>Structure High:</b> <span id="high-val" class="text-white">0.00000</span></p>
-                            <p class="mb-1"><b>Structure Low:</b> <span id="low-val" class="text-white">0.00000</span></p>
+                    <!-- Execution Data -->
+                    <div class="row border-top border-secondary pt-3">
+                        <div class="col-md-6">
+                            <p class="mb-1"><b>Active Order Block (OB):</b> <span id="ob-val" class="text-warning font-monospace">0.00000 - 0.00000</span></p>
+                            <p class="mb-1"><b>Active FVG Zone:</b> <span id="fvg-val" class="text-info font-monospace">0.00000 - 0.00000</span></p>
                         </div>
-                        <div class="col-6">
-                            <p class="mb-1"><b>Dinamiki TP:</b> <span id="tp-val" class="text-buy font-monospace fw-bold">$0.00000</span></p>
-                            <p class="mb-1"><b>Dinamiki SL:</b> <span id="sl-val" class="text-sell font-monospace fw-bold">$0.00000</span></p>
-                            <p class="mb-1"><b>Est. P&L (Win/Loss):</b> <span id="pl-val" class="text-warning font-monospace">+$0 / -$0</span></p>
+                        <div class="col-md-6">
+                            <p class="mb-1"><b>Take Profit (TP):</b> <span id="tp-val" class="text-buy font-monospace fw-bold">$0.00000</span></p>
+                            <p class="mb-1"><b>Stop Loss (SL):</b> <span id="sl-val" class="text-sell font-monospace fw-bold">$0.00000</span></p>
+                            <p class="mb-1"><b>Est. Profit / Loss:</b> <span id="pl-val" class="text-white font-monospace">+$0 / -$0</span></p>
                         </div>
                     </div>
                 </div>
             </div>
 
+            <!-- System Logs -->
             <div class="col-12">
                 <div class="card p-3">
-                    <h6 class="card-header rounded text-white mb-2">🖥️ System Logs</h6>
+                    <h6 class="card-header rounded text-white mb-2">🖥️ Realtime System Logs</h6>
                     <div id="log-box"></div>
                 </div>
             </div>
 
+            <!-- Database Trade History -->
             <div class="col-12">
                 <div class="card p-3">
-                    <h6 class="card-header rounded text-white mb-2">📜 Sdelkalar Taryhy (Database)</h6>
-                    <table class="table table-dark table-striped text-center align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th>Symbol</th>
-                                <th>Side</th>
-                                <th>Giriş Bahasy</th>
-                                <th>SL</th>
-                                <th>TP</th>
-                                <th>Qty</th>
-                                <th>Status</th>
-                                <th>Wagt</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-box"></tbody>
-                    </table>
+                    <h6 class="card-header rounded text-white mb-2">📜 Trade History (Database)</h6>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-striped text-center align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Side</th>
+                                    <th>Giriş Bahasy</th>
+                                    <th>SL</th>
+                                    <th>TP</th>
+                                    <th>Qty</th>
+                                    <th>Status</th>
+                                    <th>Wagt</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-box"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -163,21 +185,28 @@
             if(data.analysis) {
                 const a = data.analysis;
                 document.getElementById('price-val').innerText = a.curr_price;
-                document.getElementById('trend-val').innerText = a.htf_trend;
                 
                 let sig = `<span class="text-secondary">${a.signal}</span>`;
-                if(a.signal === "BUY") sig = `<span class="badge bg-buy fs-5">BUY 🚀</span>`;
-                if(a.signal === "SELL") sig = `<span class="badge bg-sell fs-5">SELL 🔻</span>`;
+                if(a.signal === "BULLISH") sig = `<span class="badge bg-buy fs-5">BULLISH 🚀</span>`;
+                if(a.signal === "BEARISH") sig = `<span class="badge bg-sell fs-5">BEARISH 🔻</span>`;
                 document.getElementById('sig-val').innerHTML = sig;
 
-                // Sebäpleri çykarmak
-                if(a.reasons) {
-                    document.getElementById('reasons-box').innerHTML = a.reasons.map(r => `<div class="mb-1">${r}</div>`).join('');
+                // Render Bullish Checks
+                let bullHtml = '';
+                for(let [k, v] of Object.entries(a.bullish_checks)) {
+                    bullHtml += `<tr><td>${k}</td><td class="text-end">${v ? '<span class="badge-true">TRUE</span>':'<span class="badge-false">FALSE</span>'}</td></tr>`;
                 }
+                document.getElementById('bull-checks').innerHTML = bullHtml;
 
-                document.getElementById('fvg-zone').innerText = a.fvg_zone.join(' - ');
-                document.getElementById('high-val').innerText = a.recent_high;
-                document.getElementById('low-val').innerText = a.recent_low;
+                // Render Bearish Checks
+                let bearHtml = '';
+                for(let [k, v] of Object.entries(a.bearish_checks)) {
+                    bearHtml += `<tr><td>${k}</td><td class="text-end">${v ? '<span class="badge-true">TRUE</span>':'<span class="badge-false">FALSE</span>'}</td></tr>`;
+                }
+                document.getElementById('bear-checks').innerHTML = bearHtml;
+
+                document.getElementById('ob-val').innerText = a.active_ob.join(' - ');
+                document.getElementById('fvg-val').innerText = a.fvg_zone.join(' - ');
                 document.getElementById('tp-val').innerText = '$' + a.tp;
                 document.getElementById('sl-val').innerText = '$' + a.sl;
                 document.getElementById('pl-val').innerText = `${a.est_profit} / ${a.est_loss}`;
@@ -200,7 +229,7 @@
             if(data.trades && data.trades.length > 0) {
                 box.innerHTML = data.trades.map(t => `
                     <tr>
-                        <td>${t.symbol}</td>
+                        <td><b>${t.symbol}</b></td>
                         <td><span class="badge ${t.side === 'Buy' ? 'bg-buy':'bg-sell'}">${t.side}</span></td>
                         <td class="font-monospace">${t.entry_price}</td>
                         <td class="text-sell font-monospace">${t.sl}</td>
