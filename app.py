@@ -138,31 +138,28 @@ def fetch_klines(symbol, interval, limit=100):
 def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
     curr_price = df_entry['close'].iloc[-1]
     
-    # 1. HTF Trend (EMA 50 & 200)
+    # 1. HTF Trend
     df_htf['ema50'] = df_htf['close'].ewm(span=50, adjust=False).mean()
     df_htf['ema200'] = df_htf['close'].ewm(span=200, adjust=False).mean()
     
     htf_ema50 = df_htf['ema50'].iloc[-1]
     htf_ema200 = df_htf['ema200'].iloc[-1]
     
-    htf_bullish = curr_price > htf_ema200 and htf_ema50 > htf_ema200
-    htf_bearish = curr_price < htf_ema200 and htf_ema50 < htf_ema200
+    htf_bullish = bool(curr_price > htf_ema200 and htf_ema50 > htf_ema200)
+    htf_bearish = bool(curr_price < htf_ema200 and htf_ema50 < htf_ema200)
 
-    # 2. Liquidity Sweep (Swept High/Low in entry TF)
+    # 2. Liquidity Sweep
     recent_20_low = df_entry['low'].iloc[-25:-5].min()
     recent_20_high = df_entry['high'].iloc[-25:-5].max()
     
-    swept_low = df_entry['low'].iloc[-5:].min() < recent_20_low and curr_price > recent_20_low
-    swept_high = df_entry['high'].iloc[-5:].max() > recent_20_high and curr_price < recent_20_high
+    swept_low = bool(df_entry['low'].iloc[-5:].min() < recent_20_low and curr_price > recent_20_low)
+    swept_high = bool(df_entry['high'].iloc[-5:].max() > recent_20_high and curr_price < recent_20_high)
 
     # 3. Market Structure Shift (MSS)
-    last_5_high = df_entry['high'].iloc[-5:].max()
-    last_5_low = df_entry['low'].iloc[-5:].min()
-    
-    mss_bullish = df_entry['close'].iloc[-1] > df_entry['high'].iloc[-3:-1].max()
-    mss_bearish = df_entry['close'].iloc[-1] < df_entry['low'].iloc[-3:-1].min()
+    mss_bullish = bool(df_entry['close'].iloc[-1] > df_entry['high'].iloc[-3:-1].max())
+    mss_bearish = bool(df_entry['close'].iloc[-1] < df_entry['low'].iloc[-3:-1].min())
 
-    # 4. Fair Value Gap (FVG)
+    # 4. FVG
     has_bullish_fvg = False
     has_bearish_fvg = False
     fvg_zone = [0.0, 0.0]
@@ -177,33 +174,30 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
             fvg_zone = [df_entry['high'].iloc[i], df_entry['low'].iloc[i-2]]
             break
 
-    # 5. Order Block (OB) Identification
+    # 5. Order Block
     bullish_ob_zone = [0.0, 0.0]
     bearish_ob_zone = [0.0, 0.0]
     has_bullish_ob = False
     has_bearish_ob = False
 
-    # Find Bullish OB (Last bearish candle before explosive up move)
     for i in range(len(df_entry) - 3, max(3, len(df_entry) - 20), -1):
-        if df_entry['close'].iloc[i] < df_entry['open'].iloc[i]: # Red candle
-            if df_entry['close'].iloc[i+1] > df_entry['high'].iloc[i]: # Strong engulf/breakout
+        if df_entry['close'].iloc[i] < df_entry['open'].iloc[i]:
+            if df_entry['close'].iloc[i+1] > df_entry['high'].iloc[i]:
                 bullish_ob_zone = [df_entry['low'].iloc[i], df_entry['high'].iloc[i]]
                 has_bullish_ob = True
                 break
 
-    # Find Bearish OB (Last bullish candle before explosive down move)
     for i in range(len(df_entry) - 3, max(3, len(df_entry) - 20), -1):
-        if df_entry['close'].iloc[i] > df_entry['open'].iloc[i]: # Green candle
+        if df_entry['close'].iloc[i] > df_entry['open'].iloc[i]:
             if df_entry['close'].iloc[i+1] < df_entry['low'].iloc[i]:
                 bearish_ob_zone = [df_entry['low'].iloc[i], df_entry['high'].iloc[i]]
                 has_bearish_ob = True
                 break
 
-    # --- Criteria Matching & Signal Logic ---
     bullish_checks = {
         "HTF Trend Bullish": htf_bullish,
         "Liquidity Sweep Low": swept_low,
-        "Market Structure Shift (MSS)": mss_bullish,
+        "Market Structure Shift": mss_bullish,
         "Fair Value Gap (FVG)": has_bullish_fvg,
         "Valid Bullish Order Block": has_bullish_ob
     }
@@ -211,7 +205,7 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
     bearish_checks = {
         "HTF Trend Bearish": htf_bearish,
         "Liquidity Sweep High": swept_high,
-        "Market Structure Shift (MSS)": mss_bearish,
+        "Market Structure Shift": mss_bearish,
         "Fair Value Gap (FVG)": has_bearish_fvg,
         "Valid Bearish Order Block": has_bearish_ob
     }
@@ -224,19 +218,18 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
     tp_price = 0.0
     active_ob = [0.0, 0.0]
 
-    # Rule: Needs at least 3 True conditions including HTF + OB / FVG
     if bull_score >= 3 and htf_bullish:
         signal = "BULLISH"
         active_ob = bullish_ob_zone if has_bullish_ob else fvg_zone
         sl_price = active_ob[0] * 0.9985 if active_ob[0] > 0 else df_entry['low'].iloc[-10:].min() * 0.9985
         risk = curr_price - sl_price
-        tp_price = curr_price + (risk * 3.0) # 1:3 R:R
+        tp_price = curr_price + (risk * 3.0)
     elif bear_score >= 3 and htf_bearish:
         signal = "BEARISH"
         active_ob = bearish_ob_zone if has_bearish_ob else fvg_zone
         sl_price = active_ob[1] * 1.0015 if active_ob[1] > 0 else df_entry['high'].iloc[-10:].max() * 1.0015
         risk = sl_price - curr_price
-        tp_price = curr_price - (risk * 3.0) # 1:3 R:R
+        tp_price = curr_price - (risk * 3.0)
 
     fmt = f"{{:.{price_prec}f}}"
     
@@ -333,7 +326,7 @@ def bot_loop():
             except Exception as e:
                 log_event(f"Error Loop: {str(e)}")
 
-        time.sleep(6)
+        time.sleep(3) # UI çalt update bolmagy üçin 3 sekunda düşürildi
 
 threading.Thread(target=bot_loop, daemon=True).start()
 
@@ -351,6 +344,15 @@ def start_bot():
     bot_state["leverage"] = int(data.get("leverage", 10))
     bot_state["auto_trade"] = bool(data.get("auto_trade", False))
     bot_state["is_running"] = True
+    
+    # Başlan badyna ilkinji analizi derrew işletmek
+    symbol = bot_state["symbol"]
+    _, _, _, price_prec = get_symbol_info(symbol)
+    df_entry = fetch_klines(symbol, bot_state["entry_tf"])
+    df_htf = fetch_klines(symbol, bot_state["htf_tf"])
+    if df_entry is not None and df_htf is not None:
+        bot_state["last_analysis"] = smc_advanced_analysis(df_entry, df_htf, bot_state["margin"], bot_state["leverage"], price_prec)
+        
     log_event(f"Bot Başlatyldy: {bot_state['symbol']}")
     return jsonify({"status": "started"})
 

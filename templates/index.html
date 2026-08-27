@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bybit SMC Institutional Precision Terminal</title>
+    <title>Bybit SMC Professional Terminal</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #0b0e14; color: #e6edf3; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        body { background-color: #0b0e14; color: #e6edf3; font-family: 'Segoe UI', system-ui, sans-serif; }
         .card { background-color: #161b22; border: 1px solid #30363d; border-radius: 10px; }
         .card-header { background-color: #21262d; border-bottom: 1px solid #30363d; font-weight: 700; color: #f0f6fc; }
         .val-large { font-size: 1.6rem; font-weight: 800; }
@@ -14,22 +14,22 @@
         .text-sell { color: #f85149 !important; }
         .bg-buy { background-color: #238636 !important; color: #ffffff; }
         .bg-sell { background-color: #da3633 !important; color: #ffffff; }
-        .badge-true { background-color: #238636; color: white; padding: 4px 10px; border-radius: 4px; font-weight: bold; }
-        .badge-false { background-color: #30363d; color: #8b949e; padding: 4px 10px; border-radius: 4px; font-weight: bold; }
+        .badge-true { background-color: #238636; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
+        .badge-false { background-color: #30363d; color: #8b949e; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
         #log-box { background-color: #05070a; height: 180px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 0.85rem; padding: 10px; border-radius: 6px; color: #58a6ff; border: 1px solid #30363d; }
-        .table-custom { color: #e6edf3; font-size: 0.9rem; }
-        .table-custom td { padding: 8px 12px; }
+        .table-custom { color: #e6edf3; font-size: 0.88rem; }
+        .table-custom td { padding: 6px 10px; }
     </style>
 </head>
 <body class="py-4">
     <div class="container-fluid px-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h3 class="fw-bold text-white m-0"><span class="text-warning">⚡ BYBIT SMC</span> Institutional Bot</h3>
-            <div>System Status: <span id="bot-status" class="badge bg-danger fs-6">OFFLINE</span></div>
+            <div>Status: <span id="bot-status" class="badge bg-danger fs-6">OFFLINE</span></div>
         </div>
 
         <div class="row g-3">
-            <!-- Terminal Controls -->
+            <!-- Left Controls -->
             <div class="col-lg-3">
                 <div class="card p-3 h-100">
                     <h5 class="card-header rounded mb-3">⚙️ Strategy Settings</h5>
@@ -72,7 +72,7 @@
                 </div>
             </div>
 
-            <!-- SMC Dynamic Matrix -->
+            <!-- SMC Analysis View -->
             <div class="col-lg-9">
                 <div class="card p-3">
                     <div class="d-flex justify-content-between align-items-center mb-3 border-bottom border-secondary pb-2">
@@ -115,7 +115,7 @@
                         </div>
                     </div>
 
-                    <!-- Execution Data -->
+                    <!-- Execution Targets -->
                     <div class="row border-top border-secondary pt-3">
                         <div class="col-md-6">
                             <p class="mb-1"><b>Active Order Block (OB):</b> <span id="ob-val" class="text-warning font-monospace">0.00000 - 0.00000</span></p>
@@ -130,7 +130,7 @@
                 </div>
             </div>
 
-            <!-- System Logs -->
+            <!-- Terminal Logs -->
             <div class="col-12">
                 <div class="card p-3">
                     <h6 class="card-header rounded text-white mb-2">🖥️ Realtime System Logs</h6>
@@ -138,7 +138,7 @@
                 </div>
             </div>
 
-            <!-- Database Trade History -->
+            <!-- History -->
             <div class="col-12">
                 <div class="card p-3">
                     <h6 class="card-header rounded text-white mb-2">📜 Trade History (Database)</h6>
@@ -166,80 +166,93 @@
 
     <script>
         async function updateStatus() {
-            const res = await fetch('/api/status');
-            const data = await res.json();
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
 
-            const badge = document.getElementById('bot-status');
-            if(data.is_running) {
-                badge.className = "badge bg-success fs-6";
-                badge.innerText = "ONLINE";
-                document.getElementById('btn-start').disabled = true;
-                document.getElementById('btn-stop').disabled = false;
-            } else {
-                badge.className = "badge bg-danger fs-6";
-                badge.innerText = "OFFLINE";
-                document.getElementById('btn-start').disabled = false;
-                document.getElementById('btn-stop').disabled = true;
-            }
-
-            if(data.analysis) {
-                const a = data.analysis;
-                document.getElementById('price-val').innerText = a.curr_price;
-                
-                let sig = `<span class="text-secondary">${a.signal}</span>`;
-                if(a.signal === "BULLISH") sig = `<span class="badge bg-buy fs-5">BULLISH 🚀</span>`;
-                if(a.signal === "BEARISH") sig = `<span class="badge bg-sell fs-5">BEARISH 🔻</span>`;
-                document.getElementById('sig-val').innerHTML = sig;
-
-                // Render Bullish Checks
-                let bullHtml = '';
-                for(let [k, v] of Object.entries(a.bullish_checks)) {
-                    bullHtml += `<tr><td>${k}</td><td class="text-end">${v ? '<span class="badge-true">TRUE</span>':'<span class="badge-false">FALSE</span>'}</td></tr>`;
+                const badge = document.getElementById('bot-status');
+                if(data.is_running) {
+                    badge.className = "badge bg-success fs-6";
+                    badge.innerText = "ONLINE";
+                    document.getElementById('btn-start').disabled = true;
+                    document.getElementById('btn-stop').disabled = false;
+                } else {
+                    badge.className = "badge bg-danger fs-6";
+                    badge.innerText = "OFFLINE";
+                    document.getElementById('btn-start').disabled = false;
+                    document.getElementById('btn-stop').disabled = true;
                 }
-                document.getElementById('bull-checks').innerHTML = bullHtml;
 
-                // Render Bearish Checks
-                let bearHtml = '';
-                for(let [k, v] of Object.entries(a.bearish_checks)) {
-                    bearHtml += `<tr><td>${k}</td><td class="text-end">${v ? '<span class="badge-true">TRUE</span>':'<span class="badge-false">FALSE</span>'}</td></tr>`;
+                if(data.analysis && Object.keys(data.analysis).length > 0) {
+                    const a = data.analysis;
+                    
+                    if(a.curr_price) document.getElementById('price-val').innerText = a.curr_price;
+                    
+                    if(a.signal) {
+                        let sig = `<span class="text-secondary">${a.signal}</span>`;
+                        if(a.signal === "BULLISH") sig = `<span class="badge bg-buy fs-5">BULLISH 🚀</span>`;
+                        if(a.signal === "BEARISH") sig = `<span class="badge bg-sell fs-5">BEARISH 🔻</span>`;
+                        document.getElementById('sig-val').innerHTML = sig;
+                    }
+
+                    // Render Bullish Checks Safely
+                    if(a.bullish_checks) {
+                        let bullHtml = '';
+                        for(let [k, v] of Object.entries(a.bullish_checks)) {
+                            bullHtml += `<tr><td>${k}</td><td class="text-end">${v ? '<span class="badge-true">TRUE</span>':'<span class="badge-false">FALSE</span>'}</td></tr>`;
+                        }
+                        document.getElementById('bull-checks').innerHTML = bullHtml;
+                    }
+
+                    // Render Bearish Checks Safely
+                    if(a.bearish_checks) {
+                        let bearHtml = '';
+                        for(let [k, v] of Object.entries(a.bearish_checks)) {
+                            bearHtml += `<tr><td>${k}</td><td class="text-end">${v ? '<span class="badge-true">TRUE</span>':'<span class="badge-false">FALSE</span>'}</td></tr>`;
+                        }
+                        document.getElementById('bear-checks').innerHTML = bearHtml;
+                    }
+
+                    if(a.active_ob) document.getElementById('ob-val').innerText = a.active_ob.join(' - ');
+                    if(a.fvg_zone) document.getElementById('fvg-val').innerText = a.fvg_zone.join(' - ');
+                    if(a.tp) document.getElementById('tp-val').innerText = '$' + a.tp;
+                    if(a.sl) document.getElementById('sl-val').innerText = '$' + a.sl;
+                    if(a.est_profit && a.est_loss) document.getElementById('pl-val').innerText = `${a.est_profit} / ${a.est_loss}`;
+                    if(a.timestamp) document.getElementById('update-time').innerText = 'Täzelendi: ' + a.timestamp;
                 }
-                document.getElementById('bear-checks').innerHTML = bearHtml;
 
-                document.getElementById('ob-val').innerText = a.active_ob.join(' - ');
-                document.getElementById('fvg-val').innerText = a.fvg_zone.join(' - ');
-                document.getElementById('tp-val').innerText = '$' + a.tp;
-                document.getElementById('sl-val').innerText = '$' + a.sl;
-                document.getElementById('pl-val').innerText = `${a.est_profit} / ${a.est_loss}`;
-                document.getElementById('update-time').innerText = 'Täzelendi: ' + a.timestamp;
+                if(data.logs) {
+                    const logBox = document.getElementById('log-box');
+                    logBox.innerHTML = data.logs.join('<br>');
+                    logBox.scrollTop = logBox.scrollHeight;
+                }
+
+                loadHistory();
+            } catch (err) {
+                console.error("Update Error:", err);
             }
-
-            if(data.logs) {
-                const logBox = document.getElementById('log-box');
-                logBox.innerHTML = data.logs.join('<br>');
-                logBox.scrollTop = logBox.scrollHeight;
-            }
-
-            loadHistory();
         }
 
         async function loadHistory() {
-            const res = await fetch('/api/history');
-            const data = await res.json();
-            const box = document.getElementById('history-box');
-            if(data.trades && data.trades.length > 0) {
-                box.innerHTML = data.trades.map(t => `
-                    <tr>
-                        <td><b>${t.symbol}</b></td>
-                        <td><span class="badge ${t.side === 'Buy' ? 'bg-buy':'bg-sell'}">${t.side}</span></td>
-                        <td class="font-monospace">${t.entry_price}</td>
-                        <td class="text-sell font-monospace">${t.sl}</td>
-                        <td class="text-buy font-monospace">${t.tp}</td>
-                        <td>${t.qty}</td>
-                        <td><span class="badge bg-info">${t.status}</span></td>
-                        <td>${t.timestamp}</td>
-                    </tr>
-                `).join('');
-            }
+            try {
+                const res = await fetch('/api/history');
+                const data = await res.json();
+                const box = document.getElementById('history-box');
+                if(data.trades && data.trades.length > 0) {
+                    box.innerHTML = data.trades.map(t => `
+                        <tr>
+                            <td><b>${t.symbol}</b></td>
+                            <td><span class="badge ${t.side === 'Buy' ? 'bg-buy':'bg-sell'}">${t.side}</span></td>
+                            <td class="font-monospace">${t.entry_price}</td>
+                            <td class="text-sell font-monospace">${t.sl}</td>
+                            <td class="text-buy font-monospace">${t.tp}</td>
+                            <td>${t.qty}</td>
+                            <td><span class="badge bg-info">${t.status}</span></td>
+                            <td>${t.timestamp}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch(e) {}
         }
 
         async function startBot() {
@@ -260,7 +273,7 @@
             updateStatus();
         }
 
-        setInterval(updateStatus, 3000);
+        setInterval(updateStatus, 2000);
         updateStatus();
     </script>
 </body>
