@@ -107,13 +107,13 @@ def get_symbol_info(symbol):
         info = res["result"]["list"][0]
         qty_step = float(info["lotSizeFilter"]["qtyStep"])
         min_qty = float(info["lotSizeFilter"]["minOrderQty"])
-        price_tick = float(info["priceFilter"]["tickSize"])
+        price_tick = str(info["priceFilter"]["tickSize"])
         
         qty_precision = len(str(qty_step).split(".")[1].rstrip("0")) if "." in str(qty_step) else 0
-        price_precision = len(str(price_tick).split(".")[1].rstrip("0")) if "." in str(price_tick) else 2
+        price_precision = len(price_tick.split(".")[1]) if "." in price_tick else 4
             
         return qty_step, min_qty, qty_precision, price_precision
-    return 1.0, 10.0, 0, 4
+    return 1.0, 10.0, 0, 5
 
 def fetch_klines(symbol, interval, limit=100):
     tf_map = {"5m": "5", "15m": "15", "30m": "30", "1H": "60", "4H": "240", "1D": "D"}
@@ -135,81 +135,102 @@ def fetch_klines(symbol, interval, limit=100):
         return df
     return None
 
-def advanced_smc_analysis(df_entry, df_htf, margin, leverage, price_prec):
+def precision_smc_analysis(df_entry, df_htf, margin, leverage, price_prec):
     curr_price = df_entry['close'].iloc[-1]
     
-    # 1. HTF Trend - EMA 50/200 Cross & Structure
+    # 1. HTF EMA Trends
     df_htf['ema50'] = df_htf['close'].ewm(span=50, adjust=False).mean()
     df_htf['ema200'] = df_htf['close'].ewm(span=200, adjust=False).mean()
     
-    htf_ema50 = df_htf['ema50'].iloc[-1]
-    htf_ema200 = df_htf['ema200'].iloc[-1]
+    ema50 = df_htf['ema50'].iloc[-1]
+    ema200 = df_htf['ema200'].iloc[-1]
     
-    if curr_price > htf_ema200 and htf_ema50 > htf_ema200:
+    if curr_price > ema200 and ema50 > ema200:
         htf_trend = "BULLISH"
-    elif curr_price < htf_ema200 and htf_ema50 < htf_ema200:
+    elif curr_price < ema200 and ema50 < ema200:
         htf_trend = "BEARISH"
     else:
-        htf_trend = "SIDEWAYS / NEUTRAL"
+        htf_trend = "SIDEWAYS"
 
-    # 2. Fair Value Gap (FVG) Barlagy
+    # 2. Fair Value Gap (FVG)
     fvg_type = "ÝOK"
-    fvg_zone = [0, 0]
+    fvg_zone = [0.0, 0.0]
     
-    for i in range(len(df_entry) - 2, max(2, len(df_entry) - 12), -1):
-        # Bullish FVG
+    for i in range(len(df_entry) - 2, max(2, len(df_entry) - 15), -1):
         if df_entry['low'].iloc[i] > df_entry['high'].iloc[i-2]:
             fvg_type = "BULLISH"
-            fvg_zone = [round(df_entry['high'].iloc[i-2], price_prec), round(df_entry['low'].iloc[i], price_prec)]
+            fvg_zone = [df_entry['high'].iloc[i-2], df_entry['low'].iloc[i]]
             break
-        # Bearish FVG
         elif df_entry['high'].iloc[i] < df_entry['low'].iloc[i-2]:
             fvg_type = "BEARISH"
-            fvg_zone = [round(df_entry['high'].iloc[i], price_prec), round(df_entry['low'].iloc[i-2], price_prec)]
+            fvg_zone = [df_entry['high'].iloc[i], df_entry['low'].iloc[i-2]]
             break
 
-    # 3. Market Structure High & Lows (SL/TP kesgitlemek üçin)
-    recent_low = df_entry['low'].iloc[-15:].min()
-    recent_high = df_entry['high'].iloc[-15:].max()
+    # 3. Structure Points
+    recent_low = df_entry['low'].iloc[-20:].min()
+    recent_high = df_entry['high'].iloc[-20:].max()
 
-    # 4. Signal & Precision SL/TP Logic
+    # 4. Reason Analysis & Signal Logic
     signal = "NEUTRAL"
+    reasons = []
+    
+    if htf_trend == "BULLISH":
+        reasons.append("1. Ulwarak Timeframe (HTF) trend ýokary diýip görkezýär.")
+    elif htf_trend == "BEARISH":
+        reasons.append("1. Ulwarak Timeframe (HTF) trend aşak diýip görkezýär.")
+    else:
+        reasons.append("1. Bazar häzirki wagtda flat (sideways) ýagdaýda.")
+
+    if fvg_type == "BULLISH":
+        reasons.append("2. Giriş timeframe-de Bullish Fair Value Gap (FVG) tapyldy.")
+    elif fvg_type == "BEARISH":
+        reasons.append("2. Giriş timeframe-de Bearish Fair Value Gap (FVG) tapyldy.")
+    else:
+        reasons.append("2. Häzirki wagtda aýdyň FVG zony ýok.")
+
     sl_price = 0.0
     tp_price = 0.0
-    
+
     if htf_trend == "BULLISH" and fvg_type == "BULLISH":
         signal = "BUY"
-        # SL structure low-dan salgylanyp az-kem aralyk goýulýar
-        sl_price = round(recent_low * 0.998, price_prec)
+        reasons.append("3. NETIJE: Trend we FVG bir wagtda BULLISH -> LONG girmek maslahat berilýär.")
+        
+        # Dinamiki SL (Structure Low-dan 0.15% pesde)
+        sl_price = round(recent_low * 0.9985, price_prec)
         risk = curr_price - sl_price
-        # Minimum 1:2 Risk/Reward
-        tp_price = round(curr_price + (risk * 2.2), price_prec)
+        # Dinamiki TP (1 : 2.5 R:R gatnaşygy bar)
+        tp_price = round(curr_price + (risk * 2.5), price_prec)
 
     elif htf_trend == "BEARISH" and fvg_type == "BEARISH":
         signal = "SELL"
-        # SL structure high-dan salgylanyp goýulýar
-        sl_price = round(recent_high * 1.002, price_prec)
+        reasons.append("3. NETIJE: Trend we FVG bir wagtda BEARISH -> SHORT girmek maslahat berilýär.")
+        
+        # Dinamiki SL (Structure High-dan 0.15% ýokarda)
+        sl_price = round(recent_high * 1.0015, price_prec)
         risk = sl_price - curr_price
-        tp_price = round(curr_price - (risk * 2.2), price_prec)
+        tp_price = round(curr_price - (risk * 2.5), price_prec)
 
-    # Risk-Reward Calculators
-    rr_ratio = "1:2.2" if signal != "NEUTRAL" else "0"
+    else:
+        reasons.append("3. NETIJE: Şartlar doly gabat gelmeýär, GARAŞMALY.")
+
+    # Format Strings
+    fmt = f"{{:.{price_prec}f}}"
     pos_size = (margin * leverage) / curr_price if curr_price > 0 else 0
-    
     p_profit = abs(tp_price - curr_price) * pos_size if signal != "NEUTRAL" else 0
     p_loss = abs(curr_price - sl_price) * pos_size if signal != "NEUTRAL" else 0
 
     return {
         "signal": signal,
         "htf_trend": htf_trend,
-        "curr_price": round(curr_price, price_prec),
+        "curr_price": fmt.format(curr_price),
         "fvg_type": fvg_type,
-        "fvg_zone": fvg_zone,
-        "recent_high": round(recent_high, price_prec),
-        "recent_low": round(recent_low, price_prec),
-        "sl": sl_price,
-        "tp": tp_price,
-        "rr_ratio": rr_ratio,
+        "fvg_zone": [fmt.format(fvg_zone[0]), fmt.format(fvg_zone[1])],
+        "recent_high": fmt.format(recent_high),
+        "recent_low": fmt.format(recent_low),
+        "sl": fmt.format(sl_price),
+        "tp": fmt.format(tp_price),
+        "reasons": reasons,
+        "rr_ratio": "1 : 2.5",
         "est_profit": f"+${round(p_profit, 2)}",
         "est_loss": f"-${round(p_loss, 2)}",
         "timestamp": time.strftime("%H:%M:%S")
@@ -224,7 +245,7 @@ def execute_trade(symbol, side, margin, leverage, price, sl, tp):
     })
     
     qty_step, min_qty, qty_prec, price_prec = get_symbol_info(symbol)
-    raw_qty = (margin * leverage) / price
+    raw_qty = (margin * leverage) / float(price)
     
     qty = round(raw_qty - (raw_qty % qty_step), qty_prec) if qty_prec > 0 else int(raw_qty)
     if qty < min_qty:
@@ -271,10 +292,10 @@ def bot_loop():
                 df_htf = fetch_klines(symbol, htf_tf)
 
                 if df_entry is not None and df_htf is not None:
-                    res = advanced_smc_analysis(df_entry, df_htf, bot_state["margin"], bot_state["leverage"], price_prec)
+                    res = precision_smc_analysis(df_entry, df_htf, bot_state["margin"], bot_state["leverage"], price_prec)
                     bot_state["last_analysis"] = res
 
-                    log_event(f"[{symbol}] Baha: {res['curr_price']} | Trend: {res['htf_trend']} | Signal: {res['signal']}")
+                    log_event(f"[{symbol}] Baha: {res['curr_price']} | Signal: {res['signal']}")
 
                     if bot_state["auto_trade"] and res["signal"] in ["BUY", "SELL"]:
                         if last_trade_signal != res["signal"]:
@@ -283,7 +304,7 @@ def bot_loop():
                                 symbol, side, bot_state["margin"], bot_state["leverage"],
                                 res["curr_price"], res["sl"], res["tp"]
                             )
-                            log_event(f"EXECUTION: {msg}")
+                            log_event(f"AUTO-ORDER: {msg}")
                             if success:
                                 last_trade_signal = res["signal"]
             except Exception as e:

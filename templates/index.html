@@ -3,41 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Takyk SMC Real-Time Bot</title>
+    <title>SMC Precision Professional Terminal</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #0b0e14; color: #e1e4e8; font-family: 'Segoe UI', sans-serif; }
-        .card { background-color: #151b23; border: 1px solid #30363d; border-radius: 8px; }
-        .card-header { background-color: #1f242d; border-bottom: 1px solid #30363d; font-weight: bold; }
-        .val-box { font-size: 1.2rem; font-weight: bold; }
-        #log-container { background-color: #080a0f; height: 220px; overflow-y: auto; font-family: monospace; font-size: 0.82rem; padding: 10px; border-radius: 5px; color: #7ee787; border: 1px solid #30363d; }
+        body { background-color: #0d1117; color: #c9d1d9; font-family: 'Inter', sans-serif; }
+        .card { background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; }
+        .card-header { background-color: #21262d; border-bottom: 1px solid #30363d; font-weight: 600; color: #f0f6fc; }
+        .val-large { font-size: 1.4rem; font-weight: bold; }
+        .text-buy { color: #3fb950 !important; }
+        .text-sell { color: #f85149 !important; }
+        .bg-buy { background-color: #238636 !important; color: white; }
+        .bg-sell { background-color: #da3633 !important; color: white; }
+        #log-box { background-color: #0d1117; height: 200px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.85rem; padding: 10px; border-radius: 6px; color: #58a6ff; border: 1px solid #30363d; }
+        .reason-list { background-color: #0d1117; padding: 10px 15px; border-radius: 6px; border: 1px solid #30363d; }
     </style>
 </head>
 <body class="py-4">
     <div class="container">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h3 class="text-warning">⚡ Precision SMC Trading Dashboard</h3>
-            <div>Status: <span id="bot-status" class="badge bg-danger">OFFLINE</span></div>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="fw-bold text-white"><span class="text-warning">⚡ Bybit SMC</span> Trading Terminal</h3>
+            <div>Status: <span id="bot-status" class="badge bg-danger fs-6">OFFLINE</span></div>
         </div>
 
         <div class="row g-3">
             <div class="col-md-4">
                 <div class="card p-3">
-                    <h5 class="card-header text-white mb-3">⚙️ Sazlamalar</h5>
+                    <h5 class="card-header rounded mb-3">⚙️ Trading Control</h5>
                     <div class="mb-2">
-                        <label class="form-label">Symbol</label>
+                        <label class="form-label text-muted">Symbol</label>
                         <input type="text" id="symbol" class="form-control bg-dark text-white border-secondary" value="DOGEUSDT">
                     </div>
                     <div class="row mb-2">
                         <div class="col">
-                            <label class="form-label">Entry TF</label>
+                            <label class="form-label text-muted">Entry TF</label>
                             <select id="entry_tf" class="form-select bg-dark text-white border-secondary">
                                 <option value="5m">5m</option>
                                 <option value="15m" selected>15m</option>
                             </select>
                         </div>
                         <div class="col">
-                            <label class="form-label">HTF TF</label>
+                            <label class="form-label text-muted">HTF TF</label>
                             <select id="htf_tf" class="form-select bg-dark text-white border-secondary">
                                 <option value="1H" selected>1H</option>
                                 <option value="4H">4H</option>
@@ -46,55 +51,62 @@
                     </div>
                     <div class="row mb-3">
                         <div class="col">
-                            <label class="form-label">Margin ($)</label>
+                            <label class="form-label text-muted">Margin ($)</label>
                             <input type="number" id="margin" class="form-control bg-dark text-white border-secondary" value="10">
                         </div>
                         <div class="col">
-                            <label class="form-label">Leverage</label>
+                            <label class="form-label text-muted">Leverage</label>
                             <input type="number" id="leverage" class="form-control bg-dark text-white border-secondary" value="10">
                         </div>
                     </div>
                     <div class="form-check form-switch mb-3">
                         <input class="form-check-input" type="checkbox" id="auto_trade">
-                        <label class="form-check-label text-warning font-bold" for="auto_trade">Awtomatiki Sdelka Aç</label>
+                        <label class="form-check-label text-warning fw-bold" for="auto_trade">Awtomatiki Sdelka Aç</label>
                     </div>
-                    <button onclick="startBot()" id="btn-start" class="btn btn-success w-100 mb-2">▶ Analizi Başlat</button>
-                    <button onclick="stopBot()" id="btn-stop" class="btn btn-danger w-100" disabled>⏹ Stop</button>
+                    <button onclick="startBot()" id="btn-start" class="btn btn-success fw-bold w-100 mb-2">▶ Analizi Başlat</button>
+                    <button onclick="stopBot()" id="btn-stop" class="btn btn-danger fw-bold w-100" disabled>⏹ Stop</button>
                 </div>
             </div>
 
             <div class="col-md-8">
                 <div class="card p-3">
-                    <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
-                        <h5 class="m-0">📊 SMC Analiz Görkezijileri</h5>
+                    <div class="d-flex justify-content-between align-items-center mb-3 border-bottom border-secondary pb-2">
+                        <h5 class="m-0 text-white">📊 Takyk Analiz Görkezijisi</h5>
                         <small id="update-time" class="text-muted">---</small>
                     </div>
+                    
                     <div class="row text-center mb-3">
-                        <div class="col">
-                            <small class="text-muted">Signal</small>
-                            <div id="sig-val" class="val-box text-secondary">NEUTRAL</div>
+                        <div class="col-4">
+                            <small class="text-muted d-block">Signal</small>
+                            <div id="sig-val" class="val-large text-secondary">NEUTRAL</div>
                         </div>
-                        <div class="col">
-                            <small class="text-muted">Baha</small>
-                            <div id="price-val" class="val-box text-white">$0.0000</div>
+                        <div class="col-4">
+                            <small class="text-muted d-block">Bybit Baha</small>
+                            <div id="price-val" class="val-large text-warning">0.00000</div>
                         </div>
-                        <div class="col">
-                            <small class="text-muted">HTF Trend</small>
-                            <div id="trend-val" class="val-box text-info">-</div>
+                        <div class="col-4">
+                            <small class="text-muted d-block">HTF Trend</small>
+                            <div id="trend-val" class="val-large text-info">-</div>
                         </div>
                     </div>
-                    <hr class="border-secondary">
-                    <div class="row">
+
+                    <div class="mb-3">
+                        <label class="fw-bold text-white mb-1">💡 Analiziň Sebäbi we Düşündirişi:</label>
+                        <div id="reasons-box" class="reason-list text-secondary">
+                            Analiz maglumatlary beklenýär...
+                        </div>
+                    </div>
+
+                    <div class="row border-top border-secondary pt-2">
                         <div class="col-6">
-                            <p class="mb-1"><b>FVG Zony:</b> <span id="fvg-zone" class="text-warning">0 - 0</span></p>
-                            <p class="mb-1"><b>Structure High:</b> <span id="high-val" class="text-white">0</span></p>
-                            <p class="mb-1"><b>Structure Low:</b> <span id="low-val" class="text-white">0</span></p>
-                            <p class="mb-1"><b>Risk/Reward:</b> <span id="rr-val" class="text-info">0</span></p>
+                            <p class="mb-1"><b>FVG Zone:</b> <span id="fvg-zone" class="text-info">0.00000 - 0.00000</span></p>
+                            <p class="mb-1"><b>Structure High:</b> <span id="high-val" class="text-white">0.00000</span></p>
+                            <p class="mb-1"><b>Structure Low:</b> <span id="low-val" class="text-white">0.00000</span></p>
                         </div>
                         <div class="col-6">
-                            <p class="mb-1"><b>Meýilleşdirilen TP:</b> <span id="tp-val" class="text-success">$0.0000</span></p>
-                            <p class="mb-1"><b>Meýilleşdirilen SL:</b> <span id="sl-val" class="text-danger">$0.0000</span></p>
-                            <p class="mb-1"><b>P&L Est (Profit/Loss):</b> <span id="pl-val" class="text-warning">+$0 / -$0</span></p>
+                            <p class="mb-1"><b>Dinamiki TP:</b> <span id="tp-val" class="text-buy font-monospace fw-bold">$0.00000</span></p>
+                            <p class="mb-1"><b>Dinamiki SL:</b> <span id="sl-val" class="text-sell font-monospace fw-bold">$0.00000</span></p>
+                            <p class="mb-1"><b>Est. P&L (Win/Loss):</b> <span id="pl-val" class="text-warning font-monospace">+$0 / -$0</span></p>
                         </div>
                     </div>
                 </div>
@@ -102,15 +114,15 @@
 
             <div class="col-12">
                 <div class="card p-3">
-                    <h6 class="card-header text-white mb-2">🖥️ Real-time System Logs</h6>
-                    <div id="log-container"></div>
+                    <h6 class="card-header rounded text-white mb-2">🖥️ System Logs</h6>
+                    <div id="log-box"></div>
                 </div>
             </div>
 
             <div class="col-12">
                 <div class="card p-3">
-                    <h6 class="card-header text-white mb-2">📜 Sdelkalar Taryhy</h6>
-                    <table class="table table-dark text-center text-sm">
+                    <h6 class="card-header rounded text-white mb-2">📜 Sdelkalar Taryhy (Database)</h6>
+                    <table class="table table-dark table-striped text-center align-middle mb-0">
                         <thead>
                             <tr>
                                 <th>Symbol</th>
@@ -120,7 +132,7 @@
                                 <th>TP</th>
                                 <th>Qty</th>
                                 <th>Status</th>
-                                <th>Waqty</th>
+                                <th>Wagt</th>
                             </tr>
                         </thead>
                         <tbody id="history-box"></tbody>
@@ -137,12 +149,12 @@
 
             const badge = document.getElementById('bot-status');
             if(data.is_running) {
-                badge.className = "badge bg-success";
+                badge.className = "badge bg-success fs-6";
                 badge.innerText = "ONLINE";
                 document.getElementById('btn-start').disabled = true;
                 document.getElementById('btn-stop').disabled = false;
             } else {
-                badge.className = "badge bg-danger";
+                badge.className = "badge bg-danger fs-6";
                 badge.innerText = "OFFLINE";
                 document.getElementById('btn-start').disabled = false;
                 document.getElementById('btn-stop').disabled = true;
@@ -150,26 +162,30 @@
 
             if(data.analysis) {
                 const a = data.analysis;
-                document.getElementById('price-val').innerText = '$' + a.curr_price;
+                document.getElementById('price-val').innerText = a.curr_price;
                 document.getElementById('trend-val').innerText = a.htf_trend;
                 
                 let sig = `<span class="text-secondary">${a.signal}</span>`;
-                if(a.signal === "BUY") sig = `<span class="text-success">BUY 🚀</span>`;
-                if(a.signal === "SELL") sig = `<span class="text-danger">SELL 🔻</span>`;
+                if(a.signal === "BUY") sig = `<span class="badge bg-buy fs-5">BUY 🚀</span>`;
+                if(a.signal === "SELL") sig = `<span class="badge bg-sell fs-5">SELL 🔻</span>`;
                 document.getElementById('sig-val').innerHTML = sig;
+
+                // Sebäpleri çykarmak
+                if(a.reasons) {
+                    document.getElementById('reasons-box').innerHTML = a.reasons.map(r => `<div class="mb-1">${r}</div>`).join('');
+                }
 
                 document.getElementById('fvg-zone').innerText = a.fvg_zone.join(' - ');
                 document.getElementById('high-val').innerText = a.recent_high;
                 document.getElementById('low-val').innerText = a.recent_low;
                 document.getElementById('tp-val').innerText = '$' + a.tp;
                 document.getElementById('sl-val').innerText = '$' + a.sl;
-                document.getElementById('rr-val').innerText = a.rr_ratio;
                 document.getElementById('pl-val').innerText = `${a.est_profit} / ${a.est_loss}`;
                 document.getElementById('update-time').innerText = 'Täzelendi: ' + a.timestamp;
             }
 
             if(data.logs) {
-                const logBox = document.getElementById('log-container');
+                const logBox = document.getElementById('log-box');
                 logBox.innerHTML = data.logs.join('<br>');
                 logBox.scrollTop = logBox.scrollHeight;
             }
@@ -181,18 +197,20 @@
             const res = await fetch('/api/history');
             const data = await res.json();
             const box = document.getElementById('history-box');
-            box.innerHTML = data.trades.map(t => `
-                <tr>
-                    <td>${t.symbol}</td>
-                    <td class="${t.side === 'Buy' ? 'text-success':'text-danger'}">${t.side}</td>
-                    <td>${t.entry_price}</td>
-                    <td class="text-danger">${t.sl}</td>
-                    <td class="text-success">${t.tp}</td>
-                    <td>${t.qty}</td>
-                    <td>${t.status}</td>
-                    <td>${t.timestamp}</td>
-                </tr>
-            `).join('');
+            if(data.trades && data.trades.length > 0) {
+                box.innerHTML = data.trades.map(t => `
+                    <tr>
+                        <td>${t.symbol}</td>
+                        <td><span class="badge ${t.side === 'Buy' ? 'bg-buy':'bg-sell'}">${t.side}</span></td>
+                        <td class="font-monospace">${t.entry_price}</td>
+                        <td class="text-sell font-monospace">${t.sl}</td>
+                        <td class="text-buy font-monospace">${t.tp}</td>
+                        <td>${t.qty}</td>
+                        <td><span class="badge bg-info">${t.status}</span></td>
+                        <td>${t.timestamp}</td>
+                    </tr>
+                `).join('');
+            }
         }
 
         async function startBot() {
