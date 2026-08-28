@@ -135,36 +135,45 @@ def fetch_klines(symbol, interval, limit=100):
         return df
     return None
 
+def calculate_atr(df, period=14):
+    high_low = df['high'] - df['low']
+    high_close = np.abs(df['high'] - df['close'].shift())
+    low_close = np.abs(df['low'] - df['close'].shift())
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = np.max(ranges, axis=1)
+    return true_range.rolling(period).mean().iloc[-1]
+
 def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
     curr_price = df_entry['close'].iloc[-1]
-    
-    # 1. HTF Trend
+    atr = calculate_atr(df_entry, 14)
+    if pd.isna(atr) or atr == 0:
+        atr = curr_price * 0.005
+
+    # 1. HTF Trend (EMA 50 / 200)
     df_htf['ema50'] = df_htf['close'].ewm(span=50, adjust=False).mean()
     df_htf['ema200'] = df_htf['close'].ewm(span=200, adjust=False).mean()
     
-    htf_ema50 = df_htf['ema50'].iloc[-1]
-    htf_ema200 = df_htf['ema200'].iloc[-1]
-    
-    htf_bullish = bool(curr_price > htf_ema200 and htf_ema50 > htf_ema200)
-    htf_bearish = bool(curr_price < htf_ema200 and htf_ema50 < htf_ema200)
+    htf_bullish = bool(df_htf['close'].iloc[-1] > df_htf['ema200'].iloc[-1])
+    htf_bearish = bool(df_htf['close'].iloc[-1] < df_htf['ema200'].iloc[-1])
 
     # 2. Liquidity Sweep
-    recent_20_low = df_entry['low'].iloc[-25:-5].min()
-    recent_20_high = df_entry['high'].iloc[-25:-5].max()
+    recent_low = df_entry['low'].iloc[-30:-3].min()
+    recent_high = df_entry['high'].iloc[-30:-3].max()
     
-    swept_low = bool(df_entry['low'].iloc[-5:].min() < recent_20_low and curr_price > recent_20_low)
-    swept_high = bool(df_entry['high'].iloc[-5:].max() > recent_20_high and curr_price < recent_20_high)
+    swept_low = bool(df_entry['low'].iloc[-3:].min() < recent_low and curr_price > recent_low)
+    swept_high = bool(df_entry['high'].iloc[-3:].max() > recent_high and curr_price < recent_high)
 
     # 3. Market Structure Shift (MSS)
-    mss_bullish = bool(df_entry['close'].iloc[-1] > df_entry['high'].iloc[-3:-1].max())
-    mss_bearish = bool(df_entry['close'].iloc[-1] < df_entry['low'].iloc[-3:-1].min())
+    mss_bullish = bool(curr_price > df_entry['high'].iloc[-5:-1].max())
+    mss_bearish = bool(curr_price < df_entry['low'].iloc[-5:-1].min())
 
-    # 4. FVG
+    # 4. Fair Value Gap (FVG) & Order Block
     has_bullish_fvg = False
     has_bearish_fvg = False
     fvg_zone = [0.0, 0.0]
+    ob_zone = [0.0, 0.0]
 
-    for i in range(len(df_entry) - 2, max(2, len(df_entry) - 15), -1):
+    for i in range(len(df_entry) - 2, max(2, len(df_entry) - 30), -1):
         if df_entry['low'].iloc[i] > df_entry['high'].iloc[i-2]:
             has_bullish_fvg = True
             fvg_zone = [df_entry['high'].iloc[i-2], df_entry['low'].iloc[i]]
@@ -174,40 +183,24 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
             fvg_zone = [df_entry['high'].iloc[i], df_entry['low'].iloc[i-2]]
             break
 
-    # 5. Order Block
-    bullish_ob_zone = [0.0, 0.0]
-    bearish_ob_zone = [0.0, 0.0]
-    has_bullish_ob = False
-    has_bearish_ob = False
-
-    for i in range(len(df_entry) - 3, max(3, len(df_entry) - 20), -1):
+    for i in range(len(df_entry) - 3, max(3, len(df_entry) - 25), -1):
         if df_entry['close'].iloc[i] < df_entry['open'].iloc[i]:
             if df_entry['close'].iloc[i+1] > df_entry['high'].iloc[i]:
-                bullish_ob_zone = [df_entry['low'].iloc[i], df_entry['high'].iloc[i]]
-                has_bullish_ob = True
-                break
-
-    for i in range(len(df_entry) - 3, max(3, len(df_entry) - 20), -1):
-        if df_entry['close'].iloc[i] > df_entry['open'].iloc[i]:
-            if df_entry['close'].iloc[i+1] < df_entry['low'].iloc[i]:
-                bearish_ob_zone = [df_entry['low'].iloc[i], df_entry['high'].iloc[i]]
-                has_bearish_ob = True
+                ob_zone = [df_entry['low'].iloc[i], df_entry['high'].iloc[i]]
                 break
 
     bullish_checks = {
-        "HTF Trend Bullish": htf_bullish,
+        "HTF Trend (1H > EMA200)": htf_bullish,
         "Liquidity Sweep Low": swept_low,
-        "Market Structure Shift": mss_bullish,
-        "Fair Value Gap (FVG)": has_bullish_fvg,
-        "Valid Bullish Order Block": has_bullish_ob
+        "Break of Structure (MSS)": mss_bullish,
+        "Fair Value Gap (FVG)": has_bullish_fvg
     }
 
     bearish_checks = {
-        "HTF Trend Bearish": htf_bearish,
+        "HTF Trend (1H < EMA200)": htf_bearish,
         "Liquidity Sweep High": swept_high,
-        "Market Structure Shift": mss_bearish,
-        "Fair Value Gap (FVG)": has_bearish_fvg,
-        "Valid Bearish Order Block": has_bearish_ob
+        "Break of Structure (MSS)": mss_bearish,
+        "Fair Value Gap (FVG)": has_bearish_fvg
     }
 
     bull_score = sum(bullish_checks.values())
@@ -216,20 +209,17 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
     signal = "NEUTRAL"
     sl_price = 0.0
     tp_price = 0.0
-    active_ob = [0.0, 0.0]
 
-    if bull_score >= 3 and htf_bullish:
+    if bull_score >= 2 and htf_bullish and (swept_low or mss_bullish):
         signal = "BULLISH"
-        active_ob = bullish_ob_zone if has_bullish_ob else fvg_zone
-        sl_price = active_ob[0] * 0.9985 if active_ob[0] > 0 else df_entry['low'].iloc[-10:].min() * 0.9985
+        sl_price = curr_price - (atr * 1.5)
         risk = curr_price - sl_price
-        tp_price = curr_price + (risk * 3.0)
-    elif bear_score >= 3 and htf_bearish:
+        tp_price = curr_price + (risk * 2.5)
+    elif bear_score >= 2 and htf_bearish and (swept_high or mss_bearish):
         signal = "BEARISH"
-        active_ob = bearish_ob_zone if has_bearish_ob else fvg_zone
-        sl_price = active_ob[1] * 1.0015 if active_ob[1] > 0 else df_entry['high'].iloc[-10:].max() * 1.0015
+        sl_price = curr_price + (atr * 1.5)
         risk = sl_price - curr_price
-        tp_price = curr_price - (risk * 3.0)
+        tp_price = curr_price - (risk * 2.5)
 
     fmt = f"{{:.{price_prec}f}}"
     
@@ -242,11 +232,11 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
         "curr_price": fmt.format(curr_price),
         "bullish_checks": bullish_checks,
         "bearish_checks": bearish_checks,
-        "active_ob": [fmt.format(active_ob[0]), fmt.format(active_ob[1])],
+        "active_ob": [fmt.format(ob_zone[0]), fmt.format(ob_zone[1])],
         "fvg_zone": [fmt.format(fvg_zone[0]), fmt.format(fvg_zone[1])],
         "sl": fmt.format(sl_price),
         "tp": fmt.format(tp_price),
-        "rr_ratio": "1 : 3.0",
+        "rr_ratio": "1 : 2.5",
         "est_profit": f"+${round(p_profit, 2)}",
         "est_loss": f"-${round(p_loss, 2)}",
         "timestamp": time.strftime("%H:%M:%S")
@@ -303,7 +293,6 @@ def bot_loop():
                 htf_tf = bot_state["htf_tf"]
 
                 _, _, _, price_prec = get_symbol_info(symbol)
-
                 df_entry = fetch_klines(symbol, entry_tf)
                 df_htf = fetch_klines(symbol, htf_tf)
 
@@ -326,7 +315,7 @@ def bot_loop():
             except Exception as e:
                 log_event(f"Error Loop: {str(e)}")
 
-        time.sleep(3) # UI çalt update bolmagy üçin 3 sekunda düşürildi
+        time.sleep(3)
 
 threading.Thread(target=bot_loop, daemon=True).start()
 
@@ -345,7 +334,6 @@ def start_bot():
     bot_state["auto_trade"] = bool(data.get("auto_trade", False))
     bot_state["is_running"] = True
     
-    # Başlan badyna ilkinji analizi derrew işletmek
     symbol = bot_state["symbol"]
     _, _, _, price_prec = get_symbol_info(symbol)
     df_entry = fetch_klines(symbol, bot_state["entry_tf"])

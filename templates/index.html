@@ -91,7 +91,7 @@
                         </div>
                         <div class="col-4">
                             <small class="text-secondary fw-bold d-block">RISK / REWARD</small>
-                            <div class="val-large text-info font-monospace">1 : 3.0</div>
+                            <div id="rr-val" class="val-large text-info font-monospace">1 : 2.5</div>
                         </div>
                     </div>
 
@@ -187,6 +187,7 @@
                     const a = data.analysis;
                     
                     if(a.curr_price) document.getElementById('price-val').innerText = a.curr_price;
+                    if(a.rr_ratio) document.getElementById('rr-val').innerText = a.rr_ratio;
                     
                     if(a.signal) {
                         let sig = `<span class="text-secondary">${a.signal}</span>`;
@@ -195,7 +196,6 @@
                         document.getElementById('sig-val').innerHTML = sig;
                     }
 
-                    // Render Bullish Checks Safely
                     if(a.bullish_checks) {
                         let bullHtml = '';
                         for(let [k, v] of Object.entries(a.bullish_checks)) {
@@ -204,7 +204,6 @@
                         document.getElementById('bull-checks').innerHTML = bullHtml;
                     }
 
-                    // Render Bearish Checks Safely
                     if(a.bearish_checks) {
                         let bearHtml = '';
                         for(let [k, v] of Object.entries(a.bearish_checks)) {
