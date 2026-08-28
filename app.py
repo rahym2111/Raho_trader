@@ -73,6 +73,7 @@ def pybit_request(endpoint, method="GET", params=None):
         payload = query_string
     else:
         payload = json.dumps(params)
+        query_string = ""
 
     param_str = timestamp + API_KEY + recv_window + payload
     signature = hmac.new(API_SECRET.encode('utf-8'), param_str.encode('utf-8'), hashlib.sha256).hexdigest()
@@ -213,10 +214,8 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
     # Strict Criteria: Minimum 3 conditions required + RSI Confirmation
     if bull_score >= 3 and htf_bullish and rsi < 65:
         signal = "BULLISH"
-        # Safe Dynamic SL (2x ATR to prevent hunt sweeps)
         sl_price = curr_price - (atr * 2.0)
         risk = curr_price - sl_price
-        # Correct 1:2 Risk/Reward TP Calculation
         tp_price = curr_price + (risk * 2.0)
 
     elif bear_score >= 3 and htf_bearish and rsi > 35:
