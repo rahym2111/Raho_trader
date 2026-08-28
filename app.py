@@ -23,8 +23,8 @@ DB_NAME = os.getenv("DB_NAME", "trades.db")
 bot_state = {
     "is_running": False,
     "symbol": "DOGEUSDT",
-    "entry_tf": "15m",
-    "htf_tf": "1H",
+    "entry_tf": "3m",
+    "htf_tf": "15m",
     "margin": 10.0,
     "leverage": 10,
     "auto_trade": False,
@@ -117,8 +117,8 @@ def get_symbol_info(symbol):
     return 1.0, 10.0, 0, 4
 
 def fetch_klines(symbol, interval, limit=100):
-    tf_map = {"5m": "5", "15m": "15", "30m": "30", "1H": "60", "4H": "240", "1D": "D"}
-    bybit_tf = tf_map.get(interval, "15")
+    tf_map = {"1m": "1", "3m": "3", "5m": "5", "15m": "15", "30m": "30", "1H": "60"}
+    bybit_tf = tf_map.get(interval, "3")
     
     res = pybit_request("/v5/market/kline", "GET", {
         "category": "linear",
@@ -136,7 +136,7 @@ def fetch_klines(symbol, interval, limit=100):
         return df
     return None
 
-def calculate_atr(df, period=14):
+def calculate_atr(df, period=7):
     high_low = df['high'] - df['low']
     high_close = np.abs(df['high'] - df['close'].shift())
     low_close = np.abs(df['low'] - df['close'].shift())
@@ -144,7 +144,7 @@ def calculate_atr(df, period=14):
     true_range = np.max(ranges, axis=1)
     return true_range.rolling(period).mean().iloc[-1]
 
-def calculate_rsi(df, period=14):
+def calculate_rsi(df, period=7):
     delta = df['close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
@@ -153,34 +153,34 @@ def calculate_rsi(df, period=14):
 
 def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
     curr_price = df_entry['close'].iloc[-1]
-    atr = calculate_atr(df_entry, 14)
-    rsi = calculate_rsi(df_entry, 14)
+    atr = calculate_atr(df_entry, 7)
+    rsi = calculate_rsi(df_entry, 7)
 
     if pd.isna(atr) or atr == 0:
-        atr = curr_price * 0.008
+        atr = curr_price * 0.003
 
-    # 1. HTF Trend Strict Validation (EMA200 + Price Action)
-    df_htf['ema200'] = df_htf['close'].ewm(span=200, adjust=False).mean()
-    htf_bullish = bool(df_htf['close'].iloc[-1] > df_htf['ema200'].iloc[-1] and df_htf['close'].iloc[-1] > df_htf['open'].iloc[-5])
-    htf_bearish = bool(df_htf['close'].iloc[-1] < df_htf['ema200'].iloc[-1] and df_htf['close'].iloc[-1] < df_htf['open'].iloc[-5])
+    # Fast EMA for Scalping
+    df_htf['ema50'] = df_htf['close'].ewm(span=50, adjust=False).mean()
+    htf_bullish = bool(df_htf['close'].iloc[-1] > df_htf['ema50'].iloc[-1])
+    htf_bearish = bool(df_htf['close'].iloc[-1] < df_htf['ema50'].iloc[-1])
 
-    # 2. Liquidity Sweep (Strict Low/High Break)
-    recent_low = df_entry['low'].iloc[-25:-3].min()
-    recent_high = df_entry['high'].iloc[-25:-3].max()
+    # Micro Liquidity Sweep (10 Candles)
+    recent_low = df_entry['low'].iloc[-12:-2].min()
+    recent_high = df_entry['high'].iloc[-12:-2].max()
     
-    swept_low = bool(df_entry['low'].iloc[-3:].min() < recent_low and curr_price > recent_low)
-    swept_high = bool(df_entry['high'].iloc[-3:].max() > recent_high and curr_price < recent_high)
+    swept_low = bool(df_entry['low'].iloc[-2:].min() <= recent_low and curr_price > recent_low)
+    swept_high = bool(df_entry['high'].iloc[-2:].max() >= recent_high and curr_price < recent_high)
 
-    # 3. Market Structure Shift (MSS)
-    mss_bullish = bool(curr_price > df_entry['high'].iloc[-6:-2].max())
-    mss_bearish = bool(curr_price < df_entry['low'].iloc[-6:-2].min())
+    # Micro MSS
+    mss_bullish = bool(curr_price > df_entry['high'].iloc[-4:-1].max())
+    mss_bearish = bool(curr_price < df_entry['low'].iloc[-4:-1].min())
 
-    # 4. Fair Value Gap (FVG)
+    # Fast FVG Check
     has_bullish_fvg = False
     has_bearish_fvg = False
     fvg_zone = [0.0, 0.0]
 
-    for i in range(len(df_entry) - 2, max(2, len(df_entry) - 20), -1):
+    for i in range(len(df_entry) - 1, max(2, len(df_entry) - 10), -1):
         if df_entry['low'].iloc[i] > df_entry['high'].iloc[i-2]:
             has_bullish_fvg = True
             fvg_zone = [df_entry['high'].iloc[i-2], df_entry['low'].iloc[i]]
@@ -191,16 +191,16 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
             break
 
     bullish_checks = {
-        "1H Trend Up (EMA200)": htf_bullish,
+        "HTF Trend Up (EMA50)": htf_bullish,
         "Liquidity Sweep Low": swept_low,
-        "Structure Shift (MSS)": mss_bullish,
+        "Micro Shift (MSS)": mss_bullish,
         "Fair Value Gap (FVG)": has_bullish_fvg
     }
 
     bearish_checks = {
-        "1H Trend Down (EMA200)": htf_bearish,
+        "HTF Trend Down (EMA50)": htf_bearish,
         "Liquidity Sweep High": swept_high,
-        "Structure Shift (MSS)": mss_bearish,
+        "Micro Shift (MSS)": mss_bearish,
         "Fair Value Gap (FVG)": has_bearish_fvg
     }
 
@@ -211,18 +211,16 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
     sl_price = 0.0
     tp_price = 0.0
 
-    # Strict Criteria: Minimum 3 conditions required + RSI Confirmation
-    if bull_score >= 3 and htf_bullish and rsi < 65:
+    # Scalping SL/TP Logic (0.6x ATR SL & 1.2x ATR TP -> R:R 1:2 Fast Scalp)
+    if bull_score >= 2 and htf_bullish and rsi < 70:
         signal = "BULLISH"
-        sl_price = curr_price - (atr * 2.0)
-        risk = curr_price - sl_price
-        tp_price = curr_price + (risk * 2.0)
+        sl_price = curr_price - (atr * 0.6)
+        tp_price = curr_price + (atr * 1.2)
 
-    elif bear_score >= 3 and htf_bearish and rsi > 35:
+    elif bear_score >= 2 and htf_bearish and rsi > 30:
         signal = "BEARISH"
-        sl_price = curr_price + (atr * 2.0)
-        risk = sl_price - curr_price
-        tp_price = curr_price - (risk * 2.0)
+        sl_price = curr_price + (atr * 0.6)
+        tp_price = curr_price - (atr * 1.2)
 
     fmt = f"{{:.{price_prec}f}}"
     
@@ -239,7 +237,7 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
         "sl": fmt.format(sl_price),
         "tp": fmt.format(tp_price),
         "rsi": round(rsi, 2),
-        "rr_ratio": "1 : 2.0",
+        "rr_ratio": "1 : 2.0 (Scalp)",
         "est_profit": f"+${round(p_profit, 2)}",
         "est_loss": f"-${round(p_loss, 2)}",
         "timestamp": time.strftime("%H:%M:%S")
@@ -282,7 +280,7 @@ def execute_trade(symbol, side, margin, leverage, price, sl, tp):
         ''', (symbol, side, price, sl, tp, qty, "OPEN"))
         conn.commit()
         conn.close()
-        return True, f"Sdelka Açyldy! Qty: {qty} | SL: {sl} | TP: {tp}"
+        return True, f"Scalp Trade Açyldy! Qty: {qty} | SL: {sl} | TP: {tp}"
     
     return False, f"Bybit Error: {res.get('retMsg')} (Code: {res.get('retCode')})"
 
@@ -312,13 +310,13 @@ def bot_loop():
                                 symbol, side, bot_state["margin"], bot_state["leverage"],
                                 res["curr_price"], res["sl"], res["tp"]
                             )
-                            log_event(f"AUTO-ORDER: {msg}")
+                            log_event(f"AUTO-SCALP-ORDER: {msg}")
                             if success:
                                 last_trade_signal = res["signal"]
             except Exception as e:
-                log_event(f"Error Loop: {str(e)}")
+                log_event(f"Loop Error: {str(e)}")
 
-        time.sleep(3)
+        time.sleep(2)
 
 threading.Thread(target=bot_loop, daemon=True).start()
 
@@ -330,8 +328,8 @@ def index():
 def start_bot():
     data = request.json or {}
     bot_state["symbol"] = data.get("symbol", "DOGEUSDT").upper()
-    bot_state["entry_tf"] = data.get("entry_tf", "15m")
-    bot_state["htf_tf"] = data.get("htf_tf", "1H")
+    bot_state["entry_tf"] = data.get("entry_tf", "3m")
+    bot_state["htf_tf"] = data.get("htf_tf", "15m")
     bot_state["margin"] = float(data.get("margin", 10))
     bot_state["leverage"] = int(data.get("leverage", 10))
     bot_state["auto_trade"] = bool(data.get("auto_trade", False))
@@ -344,7 +342,7 @@ def start_bot():
     if df_entry is not None and df_htf is not None:
         bot_state["last_analysis"] = smc_advanced_analysis(df_entry, df_htf, bot_state["margin"], bot_state["leverage"], price_prec)
         
-    log_event(f"Bot Başlatyldy: {bot_state['symbol']}")
+    log_event(f"Scalp Bot Başlatyldy: {bot_state['symbol']}")
     return jsonify({"status": "started"})
 
 @app.route("/api/stop", methods=["POST"])
