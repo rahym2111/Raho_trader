@@ -20,11 +20,12 @@ API_SECRET = os.getenv("BYBIT_API_SECRET", "")
 BASE_URL = os.getenv("BYBIT_URL", "https://api.bybit.com")
 DB_NAME = os.getenv("DB_NAME", "trades.db")
 
+# Default hökmünde iň durnukly 5m / 30m sazlandy
 bot_state = {
     "is_running": False,
     "symbol": "DOGEUSDT",
-    "entry_tf": "3m",
-    "htf_tf": "15m",
+    "entry_tf": "5m",
+    "htf_tf": "30m",
     "margin": 10.0,
     "leverage": 10,
     "auto_trade": False,
@@ -117,8 +118,21 @@ def get_symbol_info(symbol):
     return 1.0, 10.0, 0, 4
 
 def fetch_klines(symbol, interval, limit=100):
-    tf_map = {"1m": "1", "3m": "3", "5m": "5", "15m": "15", "30m": "30", "1H": "60"}
-    bybit_tf = tf_map.get(interval, "3")
+    # Doly Timeframe Map: 1m, 3m, 5m, 12m, 15m, 30m, 1h, 2h, 4h, 1d
+    tf_map = {
+        "1m": "1", 
+        "3m": "3", 
+        "5m": "5", 
+        "12m": "12", 
+        "15m": "15", 
+        "30m": "30", 
+        "1h": "60", 
+        "1H": "60",
+        "2h": "120",
+        "4h": "240",
+        "1d": "D"
+    }
+    bybit_tf = tf_map.get(str(interval), "5")
     
     res = pybit_request("/v5/market/kline", "GET", {
         "category": "linear",
@@ -211,16 +225,16 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
     sl_price = 0.0
     tp_price = 0.0
 
-    # PÄSGELÇILIKSIZ FAST SCALP SHETLERI (RSI filteri aýryldy, score >= 2 ýeterlik)
+    # 5m/30m Timeframe üçin amatly ATR çarpyjylary (SL: 0.8x, TP: 1.6x -> R:R 1:2)
     if bull_score >= 2 and bull_score > bear_score:
         signal = "BULLISH"
-        sl_price = curr_price - (atr * 0.6)
-        tp_price = curr_price + (atr * 1.2)
+        sl_price = curr_price - (atr * 0.8)
+        tp_price = curr_price + (atr * 1.6)
 
     elif bear_score >= 2 and bear_score > bull_score:
         signal = "BEARISH"
-        sl_price = curr_price + (atr * 0.6)
-        tp_price = curr_price - (atr * 1.2)
+        sl_price = curr_price + (atr * 0.8)
+        tp_price = curr_price - (atr * 1.6)
 
     fmt = f"{{:.{price_prec}f}}"
     
@@ -309,7 +323,6 @@ def bot_loop():
 
                     log_event(f"[{symbol}] Baha: {res['curr_price']} | Signal: {res['signal']} | RSI: {res['rsi']}")
 
-                    # Ýeke pozişiýa barlagy: Açyk sdelka ýok bolsa we signal BULLISH/BEARISH bolsa DERREW AÇ
                     if bot_state["auto_trade"] and res["signal"] in ["BULLISH", "BEARISH"]:
                         if not has_open_position(symbol):
                             side = "Buy" if res["signal"] == "BULLISH" else "Sell"
@@ -321,7 +334,7 @@ def bot_loop():
             except Exception as e:
                 log_event(f"Loop Error: {str(e)}")
 
-        time.sleep(3)
+        time.sleep(10) # API limitleri üçin loop wagty 10 sekunda uzaldyldy
 
 threading.Thread(target=bot_loop, daemon=True).start()
 
@@ -333,8 +346,8 @@ def index():
 def start_bot():
     data = request.json or {}
     bot_state["symbol"] = data.get("symbol", "DOGEUSDT").upper()
-    bot_state["entry_tf"] = data.get("entry_tf", "3m")
-    bot_state["htf_tf"] = data.get("htf_tf", "15m")
+    bot_state["entry_tf"] = data.get("entry_tf", "5m")
+    bot_state["htf_tf"] = data.get("htf_tf", "30m")
     bot_state["margin"] = float(data.get("margin", 10))
     bot_state["leverage"] = int(data.get("leverage", 10))
     bot_state["auto_trade"] = bool(data.get("auto_trade", False))
@@ -347,7 +360,7 @@ def start_bot():
     if df_entry is not None and df_htf is not None:
         bot_state["last_analysis"] = smc_advanced_analysis(df_entry, df_htf, bot_state["margin"], bot_state["leverage"], price_prec)
         
-    log_event(f"Scalp Bot Başlatyldy: {bot_state['symbol']}")
+    log_event(f"Scalp Bot Başlatyldy: {bot_state['symbol']} ({bot_state['entry_tf']} / {bot_state['htf_tf']})")
     return jsonify({"status": "started"})
 
 @app.route("/api/stop", methods=["POST"])
