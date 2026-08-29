@@ -41,15 +41,25 @@
                             <label class="form-label text-secondary fw-bold">Entry TF</label>
                             <select id="entry_tf" class="form-select bg-dark text-white border-secondary">
                                 <option value="1m">1m</option>
-                                <option value="3m" selected>3m</option>
-                                <option value="5m">5m</option>
+                                <option value="3m">3m</option>
+                                <option value="5m" selected>5m</option>
+                                <option value="12m">12m</option>
+                                <option value="15m">15m</option>
+                                <option value="30m">30m</option>
+                                <option value="1h">1h</option>
                             </select>
                         </div>
                         <div class="col">
                             <label class="form-label text-secondary fw-bold">HTF Trend</label>
                             <select id="htf_tf" class="form-select bg-dark text-white border-secondary">
-                                <option value="15m" selected>15m</option>
-                                <option value="30m">30m</option>
+                                <option value="5m">5m</option>
+                                <option value="12m">12m</option>
+                                <option value="15m">15m</option>
+                                <option value="30m" selected>30m</option>
+                                <option value="1h">1h</option>
+                                <option value="2h">2h</option>
+                                <option value="4h">4h</option>
+                                <option value="1d">1d</option>
                             </select>
                         </div>
                     </div>
@@ -123,7 +133,7 @@
                         </div>
                         <div class="col-md-6">
                             <p class="mb-1"><b>Take Profit (TP Fast):</b> <span id="tp-val" class="text-buy font-monospace fw-bold">$0.0000</span></p>
-                            <p class="mb-1"><b>Stop Loss (SL Fast 0.6xATR):</b> <span id="sl-val" class="text-sell font-monospace fw-bold">$0.0000</span></p>
+                            <p class="mb-1"><b>Stop Loss (SL Fast 0.8xATR):</b> <span id="sl-val" class="text-sell font-monospace fw-bold">$0.0000</span></p>
                             <p class="mb-1"><b>Est. Profit / Loss:</b> <span id="pl-val" class="text-white font-monospace">+$0 / -$0</span></p>
                         </div>
                     </div>
@@ -183,11 +193,11 @@
 
                 if(data.analysis && Object.keys(data.analysis).length > 0) {
                     const a = data.analysis;
-                    
+
                     if(a.curr_price) document.getElementById('price-val').innerText = a.curr_price;
                     if(a.rr_ratio) document.getElementById('rr-val').innerText = a.rr_ratio;
                     if(a.rsi) document.getElementById('rsi-val').innerText = a.rsi;
-                    
+
                     if(a.signal) {
                         let sig = `<span class="text-secondary">${a.signal}</span>`;
                         if(a.signal === "BULLISH") sig = `<span class="badge bg-buy fs-5">BULLISH 🚀</span>`;
