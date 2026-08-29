@@ -159,7 +159,7 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
     if pd.isna(atr) or atr == 0:
         atr = curr_price * 0.003
 
-    # Fast EMA for Scalping
+    # EMA 50 Trend Check
     df_htf['ema50'] = df_htf['close'].ewm(span=50, adjust=False).mean()
     htf_bullish = bool(df_htf['close'].iloc[-1] > df_htf['ema50'].iloc[-1])
     htf_bearish = bool(df_htf['close'].iloc[-1] < df_htf['ema50'].iloc[-1])
@@ -171,7 +171,7 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
     swept_low = bool(df_entry['low'].iloc[-2:].min() <= recent_low and curr_price > recent_low)
     swept_high = bool(df_entry['high'].iloc[-2:].max() >= recent_high and curr_price < recent_high)
 
-    # Micro MSS
+    # Micro MSS (Structure Shift)
     mss_bullish = bool(curr_price > df_entry['high'].iloc[-4:-1].max())
     mss_bearish = bool(curr_price < df_entry['low'].iloc[-4:-1].min())
 
@@ -211,13 +211,13 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
     sl_price = 0.0
     tp_price = 0.0
 
-    # Scalping SL/TP Logic (0.6x ATR SL & 1.2x ATR TP -> R:R 1:2 Fast Scalp)
-    if bull_score >= 2 and htf_bullish and rsi < 70:
+    # PÄSGELÇILIKSIZ FAST SCALP SHETLERI (RSI filteri aýryldy, score >= 2 ýeterlik)
+    if bull_score >= 2 and bull_score > bear_score:
         signal = "BULLISH"
         sl_price = curr_price - (atr * 0.6)
         tp_price = curr_price + (atr * 1.2)
 
-    elif bear_score >= 2 and htf_bearish and rsi > 30:
+    elif bear_score >= 2 and bear_score > bull_score:
         signal = "BEARISH"
         sl_price = curr_price + (atr * 0.6)
         tp_price = curr_price - (atr * 1.2)
@@ -284,8 +284,14 @@ def execute_trade(symbol, side, margin, leverage, price, sl, tp):
     
     return False, f"Bybit Error: {res.get('retMsg')} (Code: {res.get('retCode')})"
 
+def has_open_position(symbol):
+    res = pybit_request("/v5/position/list", "GET", {"category": "linear", "symbol": symbol})
+    if res.get("retCode") == 0 and res["result"]["list"]:
+        size = float(res["result"]["list"][0].get("size", 0))
+        return size > 0
+    return False
+
 def bot_loop():
-    last_trade_signal = None
     while True:
         if bot_state["is_running"]:
             try:
@@ -303,20 +309,19 @@ def bot_loop():
 
                     log_event(f"[{symbol}] Baha: {res['curr_price']} | Signal: {res['signal']} | RSI: {res['rsi']}")
 
+                    # Ýeke pozişiýa barlagy: Açyk sdelka ýok bolsa we signal BULLISH/BEARISH bolsa DERREW AÇ
                     if bot_state["auto_trade"] and res["signal"] in ["BULLISH", "BEARISH"]:
-                        if last_trade_signal != res["signal"]:
+                        if not has_open_position(symbol):
                             side = "Buy" if res["signal"] == "BULLISH" else "Sell"
                             success, msg = execute_trade(
                                 symbol, side, bot_state["margin"], bot_state["leverage"],
                                 res["curr_price"], res["sl"], res["tp"]
                             )
                             log_event(f"AUTO-SCALP-ORDER: {msg}")
-                            if success:
-                                last_trade_signal = res["signal"]
             except Exception as e:
                 log_event(f"Loop Error: {str(e)}")
 
-        time.sleep(2)
+        time.sleep(3)
 
 threading.Thread(target=bot_loop, daemon=True).start()
 
