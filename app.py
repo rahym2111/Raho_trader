@@ -139,51 +139,59 @@ def fetch_klines(symbol, interval, limit=100):
         return df
     return None
 
-def calculate_atr(df, period=14):
+# Real Hakyky RSI Hasaplamasy (RMA/Wilder's Smoothing)
+def calculate_real_rsi(df, period=14):
+    delta = df['close'].diff()
+    gain = delta.where(delta > 0, 0.0)
+    loss = -delta.where(delta < 0, 0.0)
+    
+    avg_gain = gain.ewm(alpha=1/period, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1/period, adjust=False).mean()
+    
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return float(rsi.iloc[-2]) # Ýapylan soňky şam boýunça
+
+# Real ATR Volatillik Hasaplamasy
+def calculate_real_atr(df, period=14):
     high_low = df['high'] - df['low']
     high_close = np.abs(df['high'] - df['close'].shift())
     low_close = np.abs(df['low'] - df['close'].shift())
     ranges = pd.concat([high_low, high_close, low_close], axis=1)
     true_range = np.max(ranges, axis=1)
-    return true_range.rolling(period).mean().iloc[-2]
+    atr = true_range.ewm(alpha=1/period, adjust=False).mean()
+    return float(atr.iloc[-2])
 
-def calculate_rsi(df, period=14):
-    delta = df['close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss
-    rsi_series = 100 - (100 / (1 + rs))
-    return rsi_series.iloc[-2]
+# Hakyky Kompleks SMC & Indikator Analizi
+def real_technical_analysis(df_entry, df_htf, margin, leverage, price_prec):
+    curr_price = float(df_entry['close'].iloc[-1])
+    last_closed_price = float(df_entry['close'].iloc[-2])
+    
+    rsi = calculate_real_rsi(df_entry, 14)
+    atr = calculate_real_atr(df_entry, 14)
 
-def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
-    # Ýapylan iň soňky şam (iloc[-2]) boýunça analiz
-    curr_price = df_entry['close'].iloc[-1]
-    last_closed_price = df_entry['close'].iloc[-2]
-    atr = calculate_atr(df_entry, 14)
-    rsi = calculate_rsi(df_entry, 14)
+    if atr == 0 or pd.isna(atr):
+        atr = curr_price * 0.002
 
-    if pd.isna(atr) or atr == 0:
-        atr = curr_price * 0.003
-
-    # 1. HTF Trend (EMA 50 & EMA 200 Cross)
+    # 1. High Timeframe (HTF) Trend Analizi (EMA 20 & EMA 50)
+    df_htf['ema20'] = df_htf['close'].ewm(span=20, adjust=False).mean()
     df_htf['ema50'] = df_htf['close'].ewm(span=50, adjust=False).mean()
-    df_htf['ema200'] = df_htf['close'].ewm(span=200, adjust=False).mean()
     
-    htf_bullish = bool(df_htf['close'].iloc[-2] > df_htf['ema50'].iloc[-2] and df_htf['ema50'].iloc[-2] > df_htf['ema200'].iloc[-2])
-    htf_bearish = bool(df_htf['close'].iloc[-2] < df_htf['ema50'].iloc[-2] and df_htf['ema50'].iloc[-2] < df_htf['ema200'].iloc[-2])
+    htf_bullish = bool(df_htf['close'].iloc[-2] > df_htf['ema20'].iloc[-2] and df_htf['ema20'].iloc[-2] > df_htf['ema50'].iloc[-2])
+    htf_bearish = bool(df_htf['close'].iloc[-2] < df_htf['ema20'].iloc[-2] and df_htf['ema20'].iloc[-2] < df_htf['ema50'].iloc[-2])
 
-    # 2. Liquidity Sweep Check
-    recent_low = df_entry['low'].iloc[-20:-3].min()
-    recent_high = df_entry['high'].iloc[-20:-3].max()
+    # 2. Local Support & Resistance (Makar/Lokal Zonalary)
+    support_level = float(df_entry['low'].iloc[-25:-2].min())
+    resistance_level = float(df_entry['high'].iloc[-25:-2].max())
     
-    swept_low = bool(df_entry['low'].iloc[-3:-1].min() < recent_low and last_closed_price > recent_low)
-    swept_high = bool(df_entry['high'].iloc[-3:-1].max() > recent_high and last_closed_price < recent_high)
+    near_support = bool(abs(last_closed_price - support_level) / curr_price < 0.003)
+    near_resistance = bool(abs(resistance_level - last_closed_price) / curr_price < 0.003)
 
-    # 3. Micro MSS (Market Structure Shift)
+    # 3. Market Structure Shift (MSS) / Breakout
     mss_bullish = bool(last_closed_price > df_entry['high'].iloc[-6:-2].max())
     mss_bearish = bool(last_closed_price < df_entry['low'].iloc[-6:-2].min())
 
-    # 4. FVG Zone Check
+    # 4. Fair Value Gap (FVG)
     has_bullish_fvg = False
     has_bearish_fvg = False
     fvg_zone = [0.0, 0.0]
@@ -191,31 +199,31 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
     for i in range(len(df_entry) - 2, max(2, len(df_entry) - 15), -1):
         if df_entry['low'].iloc[i] > df_entry['high'].iloc[i-2]:
             has_bullish_fvg = True
-            fvg_zone = [df_entry['high'].iloc[i-2], df_entry['low'].iloc[i]]
+            fvg_zone = [float(df_entry['high'].iloc[i-2]), float(df_entry['low'].iloc[i])]
             break
         elif df_entry['high'].iloc[i] < df_entry['low'].iloc[i-2]:
             has_bearish_fvg = True
-            fvg_zone = [df_entry['high'].iloc[i], df_entry['low'].iloc[i-2]]
+            fvg_zone = [float(df_entry['high'].iloc[i]), float(df_entry['low'].iloc[i-2])]
             break
 
-    # 5. RSI Conditions
-    rsi_bullish = bool(rsi > 45 and rsi < 70)
-    rsi_bearish = bool(rsi < 55 and rsi > 30)
+    # 5. RSI Sertleri (Oversold/Overbought we Trend)
+    rsi_bullish = bool(rsi > 40 and rsi < 68)
+    rsi_bearish = bool(rsi < 60 and rsi > 32)
 
     bullish_checks = {
-        "HTF Strong Trend Up": htf_bullish,
-        "Liquidity Sweep Low": swept_low,
-        "Micro Shift (MSS)": mss_bullish,
-        "Fair Value Gap (FVG)": has_bullish_fvg,
-        "RSI Confirmation": rsi_bullish
+        "HTF Trend Up (EMA20/50)": htf_bullish,
+        "Near Local Support": near_support,
+        "Structure Break (MSS)": mss_bullish,
+        "Bullish FVG Zone": has_bullish_fvg,
+        "RSI In Buy Zone (40-68)": rsi_bullish
     }
 
     bearish_checks = {
-        "HTF Strong Trend Down": htf_bearish,
-        "Liquidity Sweep High": swept_high,
-        "Micro Shift (MSS)": mss_bearish,
-        "Fair Value Gap (FVG)": has_bearish_fvg,
-        "RSI Confirmation": rsi_bearish
+        "HTF Trend Down (EMA20/50)": htf_bearish,
+        "Near Local Resistance": near_resistance,
+        "Structure Break (MSS)": mss_bearish,
+        "Bearish FVG Zone": has_bearish_fvg,
+        "RSI In Sell Zone (32-60)": rsi_bearish
     }
 
     bull_score = sum(bullish_checks.values())
@@ -225,16 +233,22 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
     sl_price = 0.0
     tp_price = 0.0
 
-    # Minimum 3/5 sert üpjün edilmeli
+    # Hakyky Signal Şerti: Minimum 3/5 tassyklama gerek
     if bull_score >= 3 and bull_score > bear_score:
         signal = "BULLISH"
-        sl_price = curr_price - (atr * 1.2)
-        tp_price = curr_price + (atr * 2.4)
+        # SL support-dan bir biraz aşakda ýa-da 1.5x ATR
+        calculated_sl = curr_price - (atr * 1.5)
+        sl_price = min(calculated_sl, support_level * 0.998)
+        # Risk/Reward = 1 : 2.0
+        risk = curr_price - sl_price
+        tp_price = curr_price + (risk * 2.0)
 
     elif bear_score >= 3 and bear_score > bull_score:
         signal = "BEARISH"
-        sl_price = curr_price + (atr * 1.2)
-        tp_price = curr_price - (atr * 2.4)
+        calculated_sl = curr_price + (atr * 1.5)
+        sl_price = max(calculated_sl, resistance_level * 1.002)
+        risk = sl_price - curr_price
+        tp_price = curr_price - (risk * 2.0)
 
     fmt = f"{{:.{price_prec}f}}"
     
@@ -251,13 +265,14 @@ def smc_advanced_analysis(df_entry, df_htf, margin, leverage, price_prec):
         "sl": fmt.format(sl_price),
         "tp": fmt.format(tp_price),
         "rsi": round(rsi, 2),
-        "rr_ratio": "1 : 2.0",
+        "rr_ratio": "1 : 2.0 (Awtomat)",
         "est_profit": f"+${round(p_profit, 2)}",
         "est_loss": f"-${round(p_loss, 2)}",
         "timestamp": time.strftime("%H:%M:%S")
     }
 
 def execute_trade(symbol, side, margin, leverage, price, sl, tp):
+    # Isolirlenen marža we ryçak sazlamasy
     pybit_request("/v5/position/set-leverage", "POST", {
         "category": "linear",
         "symbol": symbol,
@@ -272,6 +287,7 @@ def execute_trade(symbol, side, margin, leverage, price, sl, tp):
     if qty < min_qty:
         qty = min_qty
 
+    # Awtomatiki Stop-Loss we Take-Profit bilen Market Buýrugy
     order_payload = {
         "category": "linear",
         "symbol": symbol,
@@ -294,9 +310,9 @@ def execute_trade(symbol, side, margin, leverage, price, sl, tp):
         ''', (symbol, side, price, sl, tp, qty, "OPEN"))
         conn.commit()
         conn.close()
-        return True, f"Scalp Trade Açyldy! Qty: {qty} | SL: {sl} | TP: {tp}"
+        return True, f"Sdelka Açyldy! Qty: {qty} | SL: {sl} | TP: {tp}"
     
-    return False, f"Bybit Error: {res.get('retMsg')} (Code: {res.get('retCode')})"
+    return False, f"Bybit Katasy: {res.get('retMsg')} (Kod: {res.get('retCode')})"
 
 def has_open_position(symbol):
     res = pybit_request("/v5/position/list", "GET", {"category": "linear", "symbol": symbol})
@@ -318,7 +334,7 @@ def bot_loop():
                 df_htf = fetch_klines(symbol, htf_tf)
 
                 if df_entry is not None and df_htf is not None:
-                    res = smc_advanced_analysis(df_entry, df_htf, bot_state["margin"], bot_state["leverage"], price_prec)
+                    res = real_technical_analysis(df_entry, df_htf, bot_state["margin"], bot_state["leverage"], price_prec)
                     bot_state["last_analysis"] = res
 
                     log_event(f"[{symbol}] Baha: {res['curr_price']} | Signal: {res['signal']} | RSI: {res['rsi']}")
@@ -330,11 +346,11 @@ def bot_loop():
                                 symbol, side, bot_state["margin"], bot_state["leverage"],
                                 res["curr_price"], res["sl"], res["tp"]
                             )
-                            log_event(f"AUTO-SCALP-ORDER: {msg}")
+                            log_event(f"AUTOTRADE: {msg}")
             except Exception as e:
-                log_event(f"Loop Error: {str(e)}")
+                log_event(f"Döwren Katasy: {str(e)}")
 
-        time.sleep(15)
+        time.sleep(12)
 
 threading.Thread(target=bot_loop, daemon=True).start()
 
@@ -358,15 +374,15 @@ def start_bot():
     df_entry = fetch_klines(symbol, bot_state["entry_tf"])
     df_htf = fetch_klines(symbol, bot_state["htf_tf"])
     if df_entry is not None and df_htf is not None:
-        bot_state["last_analysis"] = smc_advanced_analysis(df_entry, df_htf, bot_state["margin"], bot_state["leverage"], price_prec)
+        bot_state["last_analysis"] = real_technical_analysis(df_entry, df_htf, bot_state["margin"], bot_state["leverage"], price_prec)
         
-    log_event(f"Scalp Bot Başlatyldy: {bot_state['symbol']} ({bot_state['entry_tf']} / {bot_state['htf_tf']})")
+    log_event(f"Bot Başlady: {bot_state['symbol']} ({bot_state['entry_tf']} / {bot_state['htf_tf']})")
     return jsonify({"status": "started"})
 
 @app.route("/api/stop", methods=["POST"])
 def stop_bot():
     bot_state["is_running"] = False
-    log_event("Bot Togtadyldy!")
+    log_event("Bot Saklandy!")
     return jsonify({"status": "stopped"})
 
 @app.route("/api/status", methods=["GET"])
